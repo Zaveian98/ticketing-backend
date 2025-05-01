@@ -1,7 +1,159 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import bcrypt
+from db import get_db_connection
+from datetime import datetime
 
 app = FastAPI()
 
-@app.get("/")
-def home():
-    return {"msg": "Ticketing backend is working ✅"}
+# ✅ CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Match your frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ✅ Models
+class RegisterRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: str
+    company: str
+    password: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+# Input model for creating a ticket
+class TicketIn(BaseModel):
+    title: str
+    description: str
+    submitted_by: str
+    status: str = "Open"
+    priority: str = "Medium"
+    screenshot: str | None = None
+
+# Output model for returning tickets
+class TicketOut(TicketIn):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    archived: bool
+
+
+# ✅ /register route
+@app.post("/register")
+def register_user(user: RegisterRequest):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM users WHERE email = %s", (user.email,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="User already exists")
+
+        hashed_pw = bcrypt.hashpw(user.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+        cursor.execute(
+            """
+            INSERT INTO users (first_name, last_name, email, company, password)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (user.first_name, user.last_name, user.email, user.company, hashed_pw),
+        )
+
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+    return {"message": "User registered successfully"}
+
+
+# ✅ /login route
+@app.post("/login")
+def login_user(login: LoginRequest):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT password, role FROM users WHERE email = %s", (login.email,))
+    user = cursor.fetchone()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    hashed_pw, role = user
+
+    if not bcrypt.checkpw(login.password.encode("utf-8"), hashed_pw.encode("utf-8")):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "message": "Login successful",
+        "role": role
+    }
+
+
+@app.get("/tickets", response_model=list[TicketOut])
+def list_tickets():
+    conn = get_db_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT id, title, description, submitted_by, status, priority,
+               created_at, updated_at, archived, screenshot
+        FROM tickets
+        WHERE archived = FALSE
+        ORDER BY created_at DESC
+    """)
+    cols = [col[0] for col in cur.description]
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    # Build a list of TicketOut dicts
+    return [TicketOut(**dict(zip(cols, row))) for row in rows]
+
+
+@app.post("/tickets", response_model=TicketOut)
+def create_ticket(ticket: TicketIn):
+    now = datetime.utcnow()
+    conn = get_db_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+        INSERT INTO tickets
+          (title, description, submitted_by, status, priority, created_at, updated_at, screenshot)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+        RETURNING id
+    """, (
+        ticket.title,
+        ticket.description,
+        ticket.submitted_by,
+        ticket.status,
+        ticket.priority,
+        now,
+        now,
+        ticket.screenshot
+    ))
+    ticket_id = cur.fetchone()[0]
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return TicketOut(
+        id=ticket_id,
+        title=ticket.title,
+        description=ticket.description,
+        submitted_by=ticket.submitted_by,
+        status=ticket.status,
+        priority=ticket.priority,
+        screenshot=ticket.screenshot,
+        created_at=now,
+        updated_at=now,
+        archived=False
+    )
