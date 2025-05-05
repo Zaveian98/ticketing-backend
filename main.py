@@ -99,25 +99,43 @@ def login_user(login: LoginRequest):
         "role": role
     }
 
+from typing import Optional
+from fastapi import Query
 
 @app.get("/tickets", response_model=list[TicketOut])
-def list_tickets():
+def list_tickets(user_email: Optional[str] = Query(
+    None,
+    description="If provided, return only tickets submitted by this email"
+)):
     conn = get_db_connection()
     cur  = conn.cursor()
-    cur.execute("""
-        SELECT id, title, description, submitted_by, status, priority,
-               created_at, updated_at, archived, screenshot
-        FROM tickets
-        WHERE archived = FALSE
-        ORDER BY created_at DESC
-    """)
-    cols = [col[0] for col in cur.description]
+
+    # Base query
+    sql    = """
+      SELECT id, title, description, submitted_by, status, priority,
+             created_at, updated_at, archived, screenshot
+      FROM tickets
+      WHERE archived = FALSE
+    """
+    params = []
+
+    # If a normal user passed user_email, add the filter
+    if user_email:
+        sql += " AND submitted_by = %s"
+        params.append(user_email)
+
+    sql += " ORDER BY created_at DESC"
+
+    cur.execute(sql, params)
+    cols = [c[0] for c in cur.description]
     rows = cur.fetchall()
     cur.close()
     conn.close()
 
-    # Build a list of TicketOut dicts
     return [TicketOut(**dict(zip(cols, row))) for row in rows]
+
+
+
 
 
 @app.post("/tickets", response_model=TicketOut)
@@ -157,3 +175,42 @@ def create_ticket(ticket: TicketIn):
         updated_at=now,
         archived=False
     )
+# --- NEW PATCH ROUTE ----------------------------------------------
+from typing import Optional
+from pydantic import BaseModel
+
+class TicketUpdate(BaseModel):
+    title:        Optional[str] = None
+    description:  Optional[str] = None
+    status:       Optional[str] = None
+    priority:     Optional[str] = None
+    updated_at:   Optional[datetime] = None
+
+@app.patch("/tickets/{ticket_id}", response_model=TicketOut)
+def patch_ticket(ticket_id: int, changes: TicketUpdate):
+    conn = get_db_connection()
+    cur  = conn.cursor()
+
+    cur.execute("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Pull only the fields sent from the front‑end
+    update_data = {k: v for k, v in changes.dict().items() if v is not None}
+    if update_data:      # build SET … query dynamically
+        set_clause  = ", ".join(f"{k} = %s" for k in update_data.keys())
+        values      = list(update_data.values()) + [ticket_id]
+        cur.execute(f"UPDATE tickets SET {set_clause} WHERE id = %s", values)
+        conn.commit()
+
+    cur.execute("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
+    updated_row = cur.fetchone()
+    cols = [c[0] for c in cur.description]
+
+    cur.close()
+    conn.close()
+    return TicketOut(**dict(zip(cols, updated_row)))
+# -------------------------------------------------------------------
