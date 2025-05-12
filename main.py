@@ -481,4 +481,8 @@ def set_task_completed(
 
 
 
+# ─── Health check ────────────────────────────────────────────────
+@app.get("/", include_in_schema=False)
+def root():
+    return {"status": "ok"}
 
