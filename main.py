@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import bcrypt
-from ticketing_backend.db import get_db_connection
+from db import get_db_connection
 from datetime import datetime, timezone
 from typing import Optional, List
 import logging
