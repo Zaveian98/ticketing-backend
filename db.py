@@ -1,12 +1,12 @@
-import psycopg2
+import os, psycopg2
 
 def get_db_connection():
     conn = psycopg2.connect(
-        host="35.209.247.212",
-        database="dbsz72db6xwawm",
-        user="uekqdzgiefoxn",
-        password="Metro2024!",
-        port=5432,
-        sslmode="prefer"  # 🔁 Change 'require' to 'prefer'
+        host=os.getenv("DB_HOST"),
+        database=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASS"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        sslmode="prefer",
     )
     return conn
