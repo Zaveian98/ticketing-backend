@@ -107,12 +107,21 @@ def register_user(user: RegisterRequest):
         hashed_pw = bcrypt.hashpw(user.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
         cursor.execute(
-            """
-            INSERT INTO users (first_name, last_name, email, company, password)
-            VALUES (%s, %s, %s, %s, %s)
-            """,
-            (user.first_name, user.last_name, user.email, user.company, hashed_pw, user.role, ),
-        )
+    """
+    INSERT INTO users
+      (first_name, last_name, email, company, password, role)
+    VALUES (%s, %s, %s, %s, %s, %s)
+    """,
+    (
+      user.first_name,
+      user.last_name,
+      user.email,
+      user.company,
+      hashed_pw,
+      user.role,    # ← now it matches the 6th placeholder
+    ),
+)
+
 
         conn.commit()
     finally:
