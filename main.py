@@ -191,7 +191,7 @@ from datetime import datetime, timezone
 
 @app.post("/tickets", response_model=TicketOut)
 def create_ticket(ticket: TicketIn):
-    """Create a new ticket and email the submitter."""
+    """Create a new ticket and email both support and the submitter."""
     now = datetime.now(timezone.utc)
     conn = get_db_connection()
     cur  = conn.cursor()
@@ -219,6 +219,7 @@ def create_ticket(ticket: TicketIn):
     cur.close()
     conn.close()
 
+    # ── Notify support ──
     support_html = f"""
       <h1>New ticket #{ticket_id} submitted</h1>
       <p><strong>Title:</strong> {ticket.title}</p>
@@ -227,13 +228,44 @@ def create_ticket(ticket: TicketIn):
     """
     try:
         send_email(
-        to="support@msistaff.com",
-        subject=f"New Ticket #{ticket_id} Submitted",
-        html=support_html
-    )
+            to="support@msistaff.com",
+            subject=f"New Ticket #{ticket_id} Submitted",
+            html=support_html
+        )
     except Exception as e:
         logger.error("Failed to notify support: %s", e, exc_info=True)
-    
+
+    # ── Notify the user ──
+    user_html = f"""
+      <h1>Your ticket #{ticket_id} has been received</h1>
+      <p>We’ve received your ticket &quot;{ticket.title}&quot; and will notify you when it’s resolved or closed.</p>
+    """
+    try:
+        send_email(
+            to=ticket.submitted_by,
+            subject=f"Your Ticket #{ticket_id} Received",
+            html=user_html
+        )
+    except Exception as e:
+        logger.error("Failed to send confirmation to user %s: %s",
+                     ticket.submitted_by, e, exc_info=True)
+
+    # ── Return the new ticket record ──
+    return TicketOut(
+        id=ticket_id,
+        title=ticket.title,
+        description=ticket.description,
+        submitted_by=ticket.submitted_by,
+        status=ticket.status,
+        priority=ticket.priority,
+        assigned_to=None,
+        created_at=now,
+        updated_at=now,
+        archived=False,
+        screenshot=ticket.screenshot,
+    )
+
+        
     return TicketOut(
         id=ticket_id,
         title=ticket.title,
