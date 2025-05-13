@@ -219,16 +219,21 @@ def create_ticket(ticket: TicketIn):
     cur.close()
     conn.close()
 
-    html = f"""
-        <h1>Ticket #{ticket_id} Submitted</h1>
-        <p>Your ticket &quot;<strong>{ticket.title}</strong>&quot; has been received.</p>
-        <p>We&rsquo;ll email you when it&rsquo;s resolved or closed.</p>
+    support_html = f"""
+      <h1>New ticket #{ticket_id} submitted</h1>
+      <p><strong>Title:</strong> {ticket.title}</p>
+      <p><strong>Description:</strong> {ticket.description}</p>
+      <p><strong>Submitted by:</strong> {ticket.submitted_by}</p>
     """
-    send_email(
-        to=ticket.submitted_by,
-        subject=f"Your Ticket #{ticket_id} Received",
-        html=html
+    try:
+        send_email(
+        to="support@msistaff.com",
+        subject=f"New Ticket #{ticket_id} Submitted",
+        html=support_html
     )
+    except Exception as e:
+        logger.error("Failed to notify support: %s", e, exc_info=True)
+    
     return TicketOut(
         id=ticket_id,
         title=ticket.title,
