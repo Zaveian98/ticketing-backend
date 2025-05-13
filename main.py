@@ -192,16 +192,18 @@ from datetime import datetime, timezone
 
 @app.post("/tickets", response_model=TicketOut)
 def create_ticket(ticket: TicketIn):
-    """Create a new ticket and email both support and the submitter."""
+    """Create a new ticket and email support, the submitter, and optional CC."""
     now = datetime.now(timezone.utc)
+
+    # 1️⃣ Insert into DB
     conn = get_db_connection()
     cur  = conn.cursor()
     cur.execute(
         """
         INSERT INTO tickets
           (title, description, submitted_by, status, priority,
-           created_at, updated_at, screenshot)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+           created_at, updated_at, screenshot, cc_email)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
         (
@@ -213,6 +215,7 @@ def create_ticket(ticket: TicketIn):
             now,
             now,
             ticket.screenshot,
+            ticket.cc_email,
         ),
     )
     ticket_id = cur.fetchone()[0]
@@ -220,7 +223,7 @@ def create_ticket(ticket: TicketIn):
     cur.close()
     conn.close()
 
-    # ── Notify support ──
+    # 2️⃣ Notify support
     support_html = f"""
       <h1>New ticket #{ticket_id} submitted</h1>
       <p><strong>Title:</strong> {ticket.title}</p>
@@ -236,25 +239,45 @@ def create_ticket(ticket: TicketIn):
     except Exception as e:
         logger.error("Failed to notify support: %s", e, exc_info=True)
 
-    # ── Notify the user ──
+    # 3️⃣ Notify the submitter
     user_html = f"""
       <h1>Your ticket #{ticket_id} has been received</h1>
       <p>We’ve received your ticket &quot;{ticket.title}&quot; and will notify you when it’s resolved or closed.</p>
     """
-    
-    send_email(
-    to=ticket.submitted_by,
-    subject=f"Your Ticket #{ticket_id} Received",
-    html=user_html
-)
+    try:
+        send_email(
+            to=ticket.submitted_by,
+            subject=f"Your Ticket #{ticket_id} Received",
+            html=user_html
+        )
+    except Exception as e:
+        logger.error("Failed to send confirmation to user %s: %s",
+                     ticket.submitted_by, e, exc_info=True)
 
+    # 4️⃣ CC notification (if provided)
+    if ticket.cc_email:
+        cc_html = f"""
+          <h1>Ticket #{ticket_id} Submitted (CC)</h1>
+          <p>You were CC’d on ticket &quot;<strong>{ticket.title}</strong>&quot; submitted by {ticket.submitted_by}.</p>
+          <p><strong>Description:</strong> {ticket.description}</p>
+        """
+        try:
+            send_email(
+                to=ticket.cc_email,
+                subject=f"You were CC’d on Ticket #{ticket_id}",
+                html=cc_html
+            )
+        except Exception as e:
+            logger.error("Failed to send CC to %s: %s",
+                         ticket.cc_email, e, exc_info=True)
 
-    # ── Return the new ticket record ──
+    # 5️⃣ Return the new ticket record
     return TicketOut(
         id=ticket_id,
         title=ticket.title,
         description=ticket.description,
         submitted_by=ticket.submitted_by,
+        cc_email=ticket.cc_email,
         status=ticket.status,
         priority=ticket.priority,
         assigned_to=None,
@@ -264,35 +287,7 @@ def create_ticket(ticket: TicketIn):
         screenshot=ticket.screenshot,
     )
 
-        
-    return TicketOut(
-        id=ticket_id,
-        title=ticket.title,
-        description=ticket.description,
-        submitted_by=ticket.submitted_by,
-        status=ticket.status,
-        priority=ticket.priority,
-        assigned_to=None,
-        created_at=now,
-        updated_at=now,
-        archived=False,
-        screenshot=ticket.screenshot,
-    )
 
-# Return the new ticket record
-    return TicketOut(
-        id=ticket_id,
-        title=ticket.title,
-        description=ticket.description,
-        submitted_by=ticket.submitted_by,
-        status=ticket.status,
-        priority=ticket.priority,
-        assigned_to=None,
-        created_at=now,
-        updated_at=now,
-        archived=False,
-        screenshot=ticket.screenshot,
-    )
 
 @app.post("/tasks", response_model=TaskOut)
 async def create_task(
