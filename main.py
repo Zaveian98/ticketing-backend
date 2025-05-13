@@ -47,8 +47,9 @@ class RegisterRequest(BaseModel):
     first_name: str
     last_name: str
     email: str
-    company: str
+    company: str 
     password: str
+    role: str = "User" 
 
 class LoginRequest(BaseModel):
     email: str
@@ -110,7 +111,7 @@ def register_user(user: RegisterRequest):
             INSERT INTO users (first_name, last_name, email, company, password)
             VALUES (%s, %s, %s, %s, %s)
             """,
-            (user.first_name, user.last_name, user.email, user.company, hashed_pw),
+            (user.first_name, user.last_name, user.email, user.company, hashed_pw, user.role, ),
         )
 
         conn.commit()
