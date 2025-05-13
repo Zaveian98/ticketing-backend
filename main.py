@@ -336,31 +336,42 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate):
         conn.close()
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    # Pull only the fields sent from the front‑end
     update_data = {k: v for k, v in changes.dict().items() if v is not None}
     if update_data:
         set_clause = ", ".join(f"{k} = %s" for k in update_data.keys())
         now        = datetime.now(timezone.utc)
-    # Build params in the exact same order as your placeholders:
         params     = list(update_data.values()) + [now, ticket_id]
-
-    cur.execute(
-      f"UPDATE tickets SET {set_clause}, updated_at = %s WHERE id = %s",
-      params
-    )
-
-    
-    
-    conn.commit()
-
+        cur.execute(
+            f"UPDATE tickets SET {set_clause}, updated_at = %s WHERE id = %s",
+            params
+        )
+        conn.commit()
 
     cur.execute("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
     updated_row = cur.fetchone()
-    cols = [c[0] for c in cur.description]
+    cols        = [c[0] for c in cur.description]
 
     cur.close()
     conn.close()
-    return TicketOut(**dict(zip(cols, updated_row)))
+
+    # Build a dict of the updated row
+    result = dict(zip(cols, updated_row))
+
+    # ── Send notification if status changed to Resolved or Closed ──
+    new_status = result.get("status")
+    if new_status in ("Resolved", "Closed"):
+        html = f"""
+            <h1>Ticket #{ticket_id} {new_status}</h1>
+            <p>Your ticket "<strong>{result['title']}</strong>" has been <strong>{new_status.lower()}</strong>.</p>
+        """
+        send_email(
+            to=result["submitted_by"],
+            subject=f"Your Ticket #{ticket_id} {new_status}",
+            html=html
+        )
+
+    # Finally, return the updated ticket
+    return TicketOut(**result)
 
 @app.get("/users", response_model=List[UserOut])
 def list_users(role: Optional[str] = Query(None, description="Filter users by role, e.g. ?role=admin")):
