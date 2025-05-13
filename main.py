@@ -614,13 +614,6 @@ def set_task_completed(
 
     return TaskOut(**result)
 
-
-
-# ─── Health check ────────────────────────────────────────────────
-@app.get("/", include_in_schema=False)
-def root():
-    return {"status": "ok"}
-
 from pydantic import EmailStr
 
 class PasswordChange(BaseModel):
@@ -645,5 +638,14 @@ def change_password(data: PasswordChange):
     conn.close()
 
     return {"message": "Password updated successfully"}
+
+
+
+
+# ─── Health check ────────────────────────────────────────────────
+@app.get("/", include_in_schema=False)
+def root():
+    return {"status": "ok"}
+
 
 
