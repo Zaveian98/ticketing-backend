@@ -96,39 +96,50 @@ class TaskUpdate(BaseModel):
 # ✅ /register route
 @app.post("/register")
 def register_user(user: RegisterRequest):
+    # 1️⃣ Insert the new user
+    conn   = get_db_connection()
+    cursor = conn.cursor()
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT * FROM users WHERE email = %s", (user.email,))
+        cursor.execute("SELECT 1 FROM users WHERE email = %s", (user.email,))
         if cursor.fetchone():
             raise HTTPException(status_code=400, detail="User already exists")
 
-        hashed_pw = bcrypt.hashpw(user.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
+        hashed_pw = bcrypt.hashpw(user.password.encode(), bcrypt.gensalt()).decode()
         cursor.execute(
-    """
-    INSERT INTO users
-      (first_name, last_name, email, company, password, role)
-    VALUES (%s, %s, %s, %s, %s, %s)
-    """,
-    (
-      user.first_name,
-      user.last_name,
-      user.email,
-      user.company,
-      hashed_pw,
-      user.role,    # ← now it matches the 6th placeholder
-    ),
-)
-
-
+            """
+            INSERT INTO users
+              (first_name, last_name, email, company, password, role)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (user.first_name, user.last_name, user.email,
+             user.company, hashed_pw, user.role),
+        )
         conn.commit()
+
     finally:
         cursor.close()
         conn.close()
 
+    # 2️⃣ Send the “set password” email
+    try:
+        html = f"""
+          <h1>Welcome to MSI Ticketing</h1>
+          <p>Hi {user.first_name},</p>
+          <p>Your account has been created with a temporary password:</p>
+          <p><strong>{user.password}</strong></p>
+          <p>Please <a href="https://your-frontend-url/change-password">click here</a> to set your permanent password.</p>
+        """
+        send_email(
+            to=user.email,
+            subject="Your MSI Ticketing Account — Set Your Password",
+            html=html
+        )
+    except Exception as e:
+        logger.error("Failed to send temp password email to %s: %s", user.email, e, exc_info=True)
+
     return {"message": "User registered successfully"}
+
+
 
 
 # ✅ /login route
