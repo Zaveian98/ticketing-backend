@@ -59,6 +59,7 @@ class TicketIn(BaseModel):
     title: str
     description: str
     submitted_by: str
+    cc_email: Optional[str] = None 
     status: str = "Open"
     priority: str = "Medium"
     screenshot: str | None = None
