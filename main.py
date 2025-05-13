@@ -243,6 +243,20 @@ def create_ticket(ticket: TicketIn):
         screenshot=ticket.screenshot,
     )
 
+# Return the new ticket record
+    return TicketOut(
+        id=ticket_id,
+        title=ticket.title,
+        description=ticket.description,
+        submitted_by=ticket.submitted_by,
+        status=ticket.status,
+        priority=ticket.priority,
+        assigned_to=None,
+        created_at=now,
+        updated_at=now,
+        archived=False,
+        screenshot=ticket.screenshot,
+    )
 
 @app.post("/tasks", response_model=TaskOut)
 async def create_task(
