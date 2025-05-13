@@ -621,3 +621,29 @@ def set_task_completed(
 def root():
     return {"status": "ok"}
 
+from pydantic import EmailStr
+
+class PasswordChange(BaseModel):
+    email:     EmailStr
+    new_password: str
+
+@app.post("/change-password")
+def change_password(data: PasswordChange):
+    # 1. Hash the new password
+    hashed = bcrypt.hashpw(data.new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+    # 2. Update the user’s password in the DB
+    conn   = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET password = %s WHERE email = %s", (hashed, data.email))
+    if cursor.rowcount == 0:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="User not found")
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {"message": "Password updated successfully"}
+
+
