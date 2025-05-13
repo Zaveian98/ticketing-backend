@@ -240,15 +240,13 @@ def create_ticket(ticket: TicketIn):
       <h1>Your ticket #{ticket_id} has been received</h1>
       <p>We’ve received your ticket &quot;{ticket.title}&quot; and will notify you when it’s resolved or closed.</p>
     """
-    try:
-        send_email(
-            to=ticket.submitted_by,
-            subject=f"Your Ticket #{ticket_id} Received",
-            html=user_html
-        )
-    except Exception as e:
-        logger.error("Failed to send confirmation to user %s: %s",
-                     ticket.submitted_by, e, exc_info=True)
+    
+    send_email(
+    to=ticket.submitted_by,
+    subject=f"Your Ticket #{ticket_id} Received",
+    html=user_html
+)
+
 
     # ── Return the new ticket record ──
     return TicketOut(
