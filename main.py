@@ -127,7 +127,7 @@ def register_user(user: RegisterRequest):
           <p>Hi {user.first_name},</p>
           <p>Your account has been created with a temporary password:</p>
           <p><strong>{user.password}</strong></p>
-          <p>Please <a href="https://support.msistaff.com/change-password">click here</a> to set your permanent password.</p>
+          <p>Please <a href="href="https://support.msistaff.com/change-password?email={user.email}"">click here</a> to set your permanent password.</p>
         """
         send_email(
             to=user.email,
