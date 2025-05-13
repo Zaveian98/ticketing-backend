@@ -123,12 +123,13 @@ def register_user(user: RegisterRequest):
     # 2️⃣ Send the “set password” email
     try:
         html = f"""
-          <h1>Welcome to MSI Ticketing</h1>
-          <p>Hi {user.first_name},</p>
-          <p>Your account has been created with a temporary password:</p>
-          <p><strong>{user.password}</strong></p>
-          <p>Please <a href="href="https://support.msistaff.com/change-password?email={user.email}"">click here</a> to set your permanent password.</p>
-        """
+  <h1>Welcome to MSI Ticketing</h1>
+  <p>Hi {user.first_name},</p>
+  <p>Your account has been created with a temporary password:</p>
+  <p><strong>{user.password}</strong></p>
+  <p>Please <a href="https://support.msistaff.com/change-password?email={user.email}">click here</a> to set your permanent password.</p>
+"""
+
         send_email(
             to=user.email,
             subject="Your MSI Ticketing Account — Set Your Password",
