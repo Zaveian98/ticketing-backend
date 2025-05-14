@@ -155,23 +155,33 @@ def login_user(login: LoginRequest):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT password, role FROM users WHERE email = %s", (login.email,))
-    user = cursor.fetchone()
-
-    if not user:
+    # pull password hash, role, and first_name
+    cursor.execute(
+        "SELECT password, role, first_name FROM users WHERE email = %s",
+        (login.email,)
+    )
+    row = cursor.fetchone()
+    if not row:
+        cursor.close()
+        conn.close()
         raise HTTPException(status_code=404, detail="User not found")
 
-    hashed_pw, role = user
+    hashed_pw, role, first_name = row
 
+    # verify password
     if not bcrypt.checkpw(login.password.encode("utf-8"), hashed_pw.encode("utf-8")):
+        cursor.close()
+        conn.close()
         raise HTTPException(status_code=401, detail="Incorrect password")
 
     cursor.close()
     conn.close()
 
+    # return role + first_name
     return {
         "message": "Login successful",
-        "role": role
+        "role": role,
+        "first_name": first_name
     }
 
 
