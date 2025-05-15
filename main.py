@@ -680,8 +680,10 @@ async def cancel_ticket(ticket_id: int):
         send_email(
             to=user_email,
             subject="Your ticket has been canceled",
-            body=f"Hello,\n\nYour ticket #{ticket_id} has been canceled.\n\n—The MSI Support Team"
+            text=f"Hello,\n\nYour ticket #{ticket_id} has been canceled.\n\n—The MSI Support Team",
+            html=f"<p>Hello,</p><p>Your ticket #{ticket_id} has been <strong>canceled</strong>.</p><p>—The MSI Support Team</p>"
         )
+
     return {"status": "canceled"}
 
 
