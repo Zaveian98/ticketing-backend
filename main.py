@@ -292,7 +292,7 @@ def create_ticket(ticket: TicketIn):
         <li><strong>Description:</strong> {ticket.description}</li>
         <li><strong>Submitted by:</strong> {ticket.submitted_by}</li>
       </ul>
-      <a href="https://support.msistaff.com/tickets/{ticket_id}" class="button">
+      <a href="https://ticketing-app-z0gp.onrender.com/tickets/{ticket_id}" class="button">
         View Ticket
       </a>
     </div>
@@ -519,6 +519,35 @@ def list_users(role: Optional[str] = Query(None, description="Filter users by ro
     return [UserOut(**dict(zip(cols, row))) for row in rows]
 
 # ─── Task Endpoints ───────────────────────────────────────────────────────────
+
+@app.get("/tickets/{ticket_id}", response_model=TicketOut)
+def get_ticket(ticket_id: int):
+    """
+    Retrieve a single ticket by ID.
+    """
+    conn = get_db_connection()
+    cur  = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, title, description, submitted_by, cc_email, status, priority,
+               assigned_to, created_at, updated_at, archived, screenshot
+        FROM tickets
+        WHERE id = %s
+        """,
+        (ticket_id,)
+    )
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    cols = [
+        "id","title","description","submitted_by","cc_email","status","priority",
+        "assigned_to","created_at","updated_at","archived","screenshot"
+    ]
+    return TicketOut(**dict(zip(cols, row)))
 
 @app.get("/tasks", response_model=list[TaskOut])
 def list_tasks(
