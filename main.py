@@ -8,7 +8,7 @@ from typing import Optional, List
 import logging
 from fastapi import Form, File, UploadFile
 from email_helper import send_email
-
+from db import archive_ticket_in_db, get_user_email_for_ticket
 
 
 # configure root logger at DEBUG (you can bump to INFO later)
@@ -663,6 +663,26 @@ def change_password(data: PasswordChange):
 @app.get("/", include_in_schema=False)
 def root():
     return {"status": "ok"}
+
+
+
+@app.post("/tickets/{ticket_id}/cancel")
+async def cancel_ticket(ticket_id: int):
+    # 1) Mark the ticket as archived in the database
+    success = archive_ticket_in_db(ticket_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # 2) Look up the user’s email for this ticket
+    user_email = get_user_email_for_ticket(ticket_id)
+    if user_email:
+        # 3) Send the notification email
+        send_email(
+            to=user_email,
+            subject="Your ticket has been canceled",
+            body=f"Hello,\n\nYour ticket #{ticket_id} has been canceled.\n\n—The MSI Support Team"
+        )
+    return {"status": "canceled"}
 
 
 
