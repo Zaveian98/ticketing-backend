@@ -261,17 +261,52 @@ def create_ticket(ticket: TicketIn):
     cur.close()
     conn.close()
 
-    # 2️⃣ Notify support
-    support_html = f"""
-      <h1>New ticket #{ticket_id} submitted</h1>
-      <p><strong>Title:</strong> {ticket.title}</p>
-      <p><strong>Description:</strong> {ticket.description}</p>
-      <p><strong>Submitted by:</strong> {ticket.submitted_by}</p>
-    """
+    # 2️⃣ Notify support with styled HTML
+    support_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>New Ticket #{ticket_id}</title>
+  <style>
+    body {{ margin:0; padding:0; background:linear-gradient(135deg,#e0eafc,#cfdef3); font-family:Arial,sans-serif; }}
+    .card {{ max-width:500px; margin:40px auto; background:#fff; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); overflow:hidden; }}
+    .header {{ background:#0052cc; color:#fff; padding:16px; text-align:center; }}
+    .header h1 {{ margin:0; font-size:1.4rem; }}
+    .content {{ padding:24px; color:#333; line-height:1.6; }}
+    .content ul {{ padding-left:20px; }}
+    .content a.button {{ display:inline-block; margin-top:16px; padding:10px 18px; background:#0052cc; color:#fff; text-decoration:none; border-radius:4px; font-weight:bold; }}
+    .footer {{ text-align:center; padding:12px; font-size:12px; color:#777; background:#f4f4f4; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>New Ticket Submitted</h1>
+    </div>
+    <div class="content">
+      <p>Hello Support Team,</p>
+      <p>A new ticket has been created:</p>
+      <ul>
+        <li><strong>Ticket #:</strong> {ticket_id}</li>
+        <li><strong>Title:</strong> {ticket.title}</li>
+        <li><strong>Description:</strong> {ticket.description}</li>
+        <li><strong>Submitted by:</strong> {ticket.submitted_by}</li>
+      </ul>
+      <a href="https://support.msistaff.com/tickets/{ticket_id}" class="button">
+        View Ticket
+      </a>
+    </div>
+    <div class="footer">
+      &copy; {now.year} MSI Staff Inc. — <a href="https://support.msistaff.com">Support Portal</a>
+    </div>
+  </div>
+</body>
+</html>
+"""
     try:
         send_email(
             to="support@msistaff.com",
-            subject=f"New Ticket #{ticket_id} Submitted",
+            subject=f"[MSI] New Ticket #{ticket_id} Submitted",
             html=support_html
         )
     except Exception as e:
@@ -324,6 +359,7 @@ def create_ticket(ticket: TicketIn):
         archived=False,
         screenshot=ticket.screenshot,
     )
+
 
 
 
