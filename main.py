@@ -68,6 +68,7 @@ class TicketIn(BaseModel):
 # Output model for returning tickets
 class TicketOut(TicketIn):
     id: int
+    submitted_by_name: str
     assigned_to: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -200,31 +201,44 @@ def list_tickets(
     cur  = conn.cursor()
 
     sql = """
-  SELECT id, title, description, submitted_by, status, priority,
-       assigned_to,
-       created_at, updated_at, archived, screenshot
-FROM tickets
-WHERE archived = %s
-
-"""
+    SELECT
+      t.id,
+      t.title,
+      t.description,
+      t.submitted_by,
+      u.first_name || ' ' || u.last_name AS submitted_by_name,
+      t.status,
+      t.priority,
+      t.assigned_to,
+      t.created_at,
+      t.updated_at,
+      t.archived,
+      t.screenshot
+    FROM tickets t
+    LEFT JOIN users u
+      ON u.email = t.submitted_by
+    WHERE t.archived = %s
+    """
     params = [archived]
 
-
-
-    # If a normal user passed user_email, add the filter
     if user_email:
-        sql += " AND submitted_by = %s"
+        sql += " AND t.submitted_by = %s"
         params.append(user_email)
 
-    sql += " ORDER BY created_at DESC"
+    sql += " ORDER BY t.created_at DESC"
 
     cur.execute(sql, params)
     cols = [c[0] for c in cur.description]
     rows = cur.fetchall()
+
     cur.close()
     conn.close()
 
-    return [TicketOut(**dict(zip(cols, row))) for row in rows]
+    return [
+        TicketOut(**dict(zip(cols, row)))
+        for row in rows
+    ]
+
 
 from datetime import datetime, timezone
 
