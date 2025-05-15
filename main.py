@@ -292,7 +292,7 @@ def create_ticket(ticket: TicketIn):
         <li><strong>Description:</strong> {ticket.description}</li>
         <li><strong>Submitted by:</strong> {ticket.submitted_by}</li>
       </ul>
-      <a href="https://ticketing-app-z0gp.onrender.com/tickets/{ticket_id}" class="button">
+      <a href="https://support.msistaff.com/admin" class="button">
         View Ticket
       </a>
     </div>
