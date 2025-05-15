@@ -673,16 +673,21 @@ async def cancel_ticket(ticket_id: int):
     if not success:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    # 2) Look up the user’s email for this ticket
     user_email = get_user_email_for_ticket(ticket_id)
+    print(f"[CancelRoute] user_email = {user_email}")   # log the address
+
     if user_email:
-        # 3) Send the notification email
-        send_email(
-            to=user_email,
-            subject="Your ticket has been canceled",
-            text=f"Hello,\n\nYour ticket #{ticket_id} has been canceled.\n\n—The MSI Support Team",
-            html=f"<p>Hello,</p><p>Your ticket #{ticket_id} has been <strong>canceled</strong>.</p><p>—The MSI Support Team</p>"
-        )
+        try:
+            print(f"[CancelRoute] Attempting to send email to {user_email}")
+            send_email(
+                to=user_email,
+                subject="Your ticket has been canceled",
+                text=f"Hello,\n\nYour ticket #{ticket_id} has been canceled.\n\n—The MSI Support Team",
+                html=f"<p>Hello,</p><p>Your ticket #{ticket_id} has been <strong>canceled</strong>.</p><p>—The MSI Support Team</p>"
+            )
+            print("[CancelRoute] Email send succeeded")
+        except Exception as e:
+            print("[CancelRoute] Email send ERROR:", repr(e))
 
     return {"status": "canceled"}
 
