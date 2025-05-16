@@ -21,19 +21,19 @@ logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(debug=True)
 origins = [
-    "http://localhost:5173",                  # React dev server
-    "https://support.msistaff.com",            # your live site
-    "https://ticketing-app-z0gp.onrender.com"  # render preview, if used
+    "http://localhost:5173",
+    "https://support.msistaff.com",
+    "https://ticketing-app-z0gp.onrender.com",
 ]
 
-# ← CORS MUST go here, before any @app.on_event or @app.get/@app.post
 app.add_middleware(
-  CORSMiddleware,
-  allow_origins=origins,
-  allow_methods=["*"],
-  allow_headers=["*"],
-  allow_credentials=True,
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
 )
+
 
 
 
