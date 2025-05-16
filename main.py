@@ -522,6 +522,8 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate):
             html=html
         )
 
+    print("Updated ticket:", result)  # Add this line
+    
     # Finally, return the updated ticket
     return TicketOut(**result)
 
