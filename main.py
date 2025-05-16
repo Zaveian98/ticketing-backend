@@ -205,13 +205,15 @@ def list_tickets(
     conn = get_db_connection()
     cur  = conn.cursor()
 
+    # 1️⃣ Query tickets + user names
     sql = """
     SELECT
       t.id,
       t.title,
       t.description,
       t.submitted_by,
-      u.first_name || ' ' || u.last_name AS submitted_by_name,
+      u.first_name,
+      u.last_name,
       t.status,
       t.priority,
       t.assigned_to,
@@ -219,9 +221,9 @@ def list_tickets(
       t.updated_at,
       t.archived,
       t.screenshot
-    FROM tickets t
-    LEFT JOIN users u
-      ON u.email = t.submitted_by
+    FROM tickets AS t
+    LEFT JOIN users AS u
+      ON t.submitted_by = u.email
     WHERE t.archived = %s
     """
     params = [archived]
@@ -235,14 +237,23 @@ def list_tickets(
     cur.execute(sql, params)
     cols = [c[0] for c in cur.description]
     rows = cur.fetchall()
-
     cur.close()
     conn.close()
 
-    return [
-        TicketOut(**dict(zip(cols, row)))
-        for row in rows
-    ]
+    tickets = []
+    for row in rows:
+        data = dict(zip(cols, row))
+
+        # 2️⃣ Build the `submitted_by_name` field
+        first = data.pop("first_name") or ""
+        last  = data.pop("last_name") or ""
+        full  = (first + " " + last).strip()
+        data["submitted_by_name"] = full or None
+
+        tickets.append(TicketOut(**data))
+
+    return tickets
+
 
 
 from datetime import datetime, timezone
