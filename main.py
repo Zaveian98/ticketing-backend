@@ -250,8 +250,8 @@ def list_tickets(
         # 2️⃣ Build the `submitted_by_name` field
         first = data.pop("first_name") or ""
         last  = data.pop("last_name") or ""
-        full  = (first + " " + last).strip()
-        data["submitted_by_name"] = full or None
+        data["submitted_by_name"] = (first + " " + last).strip()
+
 
         tickets.append(TicketOut(**data))
 
