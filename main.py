@@ -20,19 +20,22 @@ logger = logging.getLogger("uvicorn.error")
 
 
 app = FastAPI(debug=True)
+
+
 origins = [
-    "http://localhost:5173",
-    "https://support.msistaff.com",
-    "https://ticketing-app-z0gp.onrender.com",
+    "http://localhost:5173",                 # Vite dev
+    "https://support.msistaff.com",           # Prod UI
+    "https://ticketing-app-z0gp.onrender.com" # Render preview
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins,    # ← use your list here, not ["*"]
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=True,
+    allow_credentials=True,   # only if you actually need cookies
 )
+
 
 
 
