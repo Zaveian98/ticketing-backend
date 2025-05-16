@@ -29,7 +29,7 @@ origins = [
 # ← CORS MUST go here, before any @app.on_event or @app.get/@app.post
 app.add_middleware(
   CORSMiddleware,
-  allow_origins=["*"],
+  allow_origins=origins,
   allow_methods=["*"],
   allow_headers=["*"],
   allow_credentials=True,
