@@ -45,7 +45,9 @@ def send_email(to: str, subject: str, html: str, text: str | None = None):
 
 def send_welcome_email(to: str, first_name: str, temp_password: str, reset_link: str):
     # 1. Load the HTML template
-    with open('templates/welcome_email.html', 'r', encoding='utf-8') as f:
+    template_path = os.path.join(os.path.dirname(__file__), 'templates', 'welcome_email.html')
+    with open(template_path, 'r', encoding='utf-8') as f:
+
         tpl = Template(f.read())
 
     # 2. Fill in our placeholders
