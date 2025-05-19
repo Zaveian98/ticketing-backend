@@ -293,6 +293,21 @@ def create_ticket(ticket: TicketIn):
     conn.commit()
     cur.close()
     conn.close()
+    
+# ── Lookup submitter’s first & last name ──
+    conn2 = get_db_connection()
+    cur2  = conn2.cursor()
+    cur2.execute(
+        "SELECT first_name, last_name FROM users WHERE email = %s",
+        (ticket.submitted_by,),
+    )
+    name_row = cur2.fetchone() or ("", "")
+    cur2.close()
+    conn2.close()
+
+    first, last = name_row
+    submitted_by_name = (first + " " + last).strip()
+
 
     # 2️⃣ Notify support with styled HTML
     support_html = f"""<!DOCTYPE html>
@@ -383,6 +398,7 @@ def create_ticket(ticket: TicketIn):
         title=ticket.title,
         description=ticket.description,
         submitted_by=ticket.submitted_by,
+        submitted_by_name=submitted_by_name,
         cc_email=ticket.cc_email,
         status=ticket.status,
         priority=ticket.priority,
