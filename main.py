@@ -108,7 +108,7 @@ class TaskUpdate(BaseModel):
 
 # ✅ /register route
 @app.post("/register")
-def register_user(user: RegisterRequest):
+def register_user(user: RegisterRequest, background_tasks: BackgroundTasks):
     # 1️⃣ Insert the new user
     conn   = get_db_connection()
     cursor = conn.cursor()
@@ -134,17 +134,16 @@ def register_user(user: RegisterRequest):
         conn.close()
 
     # 2️⃣ Send styled “set password” email
-    try:
-        send_welcome_email(
-            to=user.email,
-            first_name=user.first_name,
-            temp_password=user.password,
-            reset_link=f"https://support.msistaff.com/change-password?email={user.email}"
-        )
-    except Exception as e:
-        logger.error(
-            "Failed to send welcome email to %s: %s", user.email, e, exc_info=True
-        )
+        # 2️⃣ Queue styled “set password” email in the background
+    logger.debug("Register_user: scheduling welcome email to %s with role %s", user.email, user.role)
+    background_tasks.add_task(
+        send_welcome_email,
+        user.email,
+        user.first_name,
+        user.password,
+        f"https://support.msistaff.com/change-password?email={user.email}"
+    )
+
 
     # 3️⃣ Return success message
     return {"message": "User registered successfully"}
