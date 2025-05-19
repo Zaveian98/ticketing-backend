@@ -10,6 +10,8 @@ from fastapi import Form, File, UploadFile
 from email_helper import send_email
 from db import archive_ticket_in_db, get_user_email_for_ticket
 from fastapi import BackgroundTasks
+from email_helper import send_welcome_email
+
 
 
 
@@ -131,32 +133,21 @@ def register_user(user: RegisterRequest):
         cursor.close()
         conn.close()
 
-    # 2️⃣ Send the “set password” email
+    # 2️⃣ Send styled “set password” email
     try:
-        html = f"""
-  <h1>Welcome to MSI Ticketing</h1>
-  <p>Hi {user.first_name},</p>
-  <p>Your account has been created with a temporary password:</p>
-  <p><strong>{user.password}</strong></p>
-  <p>
-    Please
-    <a href="https://support.msistaff.com/change-password?email={user.email}">
-      click here
-    </a>
-    to set your permanent password.
-  </p>
-"""
-
-        send_email(
+        send_welcome_email(
             to=user.email,
-            subject="Your MSI Ticketing Account — Set Your Password",
-            html=html
+            first_name=user.first_name,
+            temp_password=user.password,
+            reset_link=f"https://support.msistaff.com/change-password?email={user.email}"
         )
     except Exception as e:
-        logger.error("Failed to send temp password email to %s: %s", user.email, e, exc_info=True)
+        logger.error(
+            "Failed to send welcome email to %s: %s", user.email, e, exc_info=True
+        )
 
+    # 3️⃣ Return success message
     return {"message": "User registered successfully"}
-
 
 
 

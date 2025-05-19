@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Welcome to MSI Ticketing</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { margin:0; padding:0; background-color:#f2f4f6; font-family:Arial,sans-serif; }
+    .container { max-width:600px; margin:20px auto; padding:0 20px; }
+    .card { background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); overflow:hidden; }
+    .header { background:#007bff; padding:20px; text-align:center; }
+    .header img { max-height:40px; }
+    .content { padding:20px; color:#333; line-height:1.5; }
+    .button { display:inline-block; background:#28a745; color:#fff !important;
+               text-decoration:none; padding:12px 24px; border-radius:4px; margin:20px 0; }
+    .footer { font-size:12px; color:#888; text-align:center; padding:10px 0; }
+    a { color:#007bff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <!-- point to your real logo here -->
+        <img src="https://your.cdn.com/images/msi-logo-white.png" alt="MSI Ticketing">
+      </div>
+      <div class="content">
+        <h2>Welcome to MSI Ticketing!</h2>
+        <p>Hi ${first_name},</p>
+        <p>Your account has been created with this temporary password:</p>
+        <p style="font-size:18px; font-weight:bold; text-align:center;">
+          ${temp_password}
+        </p>
+        <p>To set your permanent password, click below:</p>
+        <p style="text-align:center;">
+          <a href="${reset_link}" class="button">Set Your Password</a>
+        </p>
+        <p>If that doesn’t work, copy &amp; paste this link into your browser:</p>
+        <p><a href="${reset_link}">${reset_link}</a></p>
+        <p>Thanks,<br>MSI IT Support Team</p>
+      </div>
+    </div>
+    <div class="footer">
+      © ${year} MSI Staff Inc. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>

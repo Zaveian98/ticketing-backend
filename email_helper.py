@@ -1,10 +1,12 @@
 # email_helper.py
-
 import os
 import ssl
 import smtplib
 from email.message import EmailMessage
 from dotenv import load_dotenv
+from string import Template     # ← this line must be here
+import datetime                 # ← and this one
+
 
 # Load SMTP_USER and SMTP_PASS from .env
 load_dotenv()
@@ -40,3 +42,38 @@ def send_email(to: str, subject: str, html: str, text: str | None = None):
         smtp.starttls(context=ctx)
         smtp.login(SMTP_USER, SMTP_PASS)
         smtp.send_message(msg)
+
+def send_welcome_email(to: str, first_name: str, temp_password: str, reset_link: str):
+    # 1. Load the HTML template
+    with open('templates/welcome_email.html', 'r', encoding='utf-8') as f:
+        tpl = Template(f.read())
+
+    # 2. Fill in our placeholders
+    html_body = tpl.substitute(
+        first_name=first_name,
+        temp_password=temp_password,
+        reset_link=reset_link,
+        year=datetime.datetime.now().year
+    )
+
+    # 3. Create a simple plain-text fallback
+    text_body = f"""\
+Welcome to MSI Ticketing!
+
+Hi {first_name},
+
+Your temporary password is: {temp_password}
+
+Set your password here: {reset_link}
+
+Thanks,
+MSI IT Support Team
+"""
+
+    # 4. Use our send_email() to dispatch
+    send_email(
+        to=to,
+        subject="Your MSI Ticketing Account — Set Your Password",
+        html=html_body,
+        text=text_body
+    )
