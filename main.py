@@ -394,7 +394,10 @@ def create_ticket(ticket: TicketIn):
       </ul>
       <p>Check its status any time:</p>
       <p style="text-align:center;">
-        <a href="https://support.msistaff.com/tickets/{ticket_id}" class="button">
+        <a
+          href="https://support.msistaff.com/ticketboard?user_email={ticket.submitted_by}"
+          class="button"
+        >
           View Your Ticket
         </a>
       </p>
