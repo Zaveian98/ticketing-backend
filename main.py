@@ -338,7 +338,7 @@ def create_ticket(ticket: TicketIn):
         <li><strong>Ticket #:</strong> {ticket_id}</li>
         <li><strong>Title:</strong> {ticket.title}</li>
         <li><strong>Description:</strong> {ticket.description}</li>
-        <li><strong>Submitted by:</strong> {ticket.submitted_by}</li>
+        <li><strong>Submitted by:</strong> {submitted_by_name}</li>
       </ul>
       <a href="https://support.msistaff.com/admin" class="button">
         View Ticket
@@ -379,7 +379,7 @@ def create_ticket(ticket: TicketIn):
     if ticket.cc_email:
         cc_html = f"""
           <h1>Ticket #{ticket_id} Submitted (CC)</h1>
-          <p>You were CC’d on ticket &quot;<strong>{ticket.title}</strong>&quot; submitted by {ticket.submitted_by}.</p>
+          <p>You were CC’d on ticket &quot;<strong>{ticket.title}</strong>&quot; submitted by {submitted_by_name}.</p>
           <p><strong>Description:</strong> {ticket.description}</p>
         """
         try:
