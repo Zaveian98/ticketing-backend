@@ -72,6 +72,7 @@ class TicketIn(BaseModel):
     title: str
     description: str
     submitted_by: str
+    location: Optional[str] = None
     cc_email: Optional[str] = None 
     status: str = "Open"
     priority: str = "Medium"
@@ -81,7 +82,7 @@ class TicketIn(BaseModel):
 class TicketOut(TicketIn):
     id: int
     submitted_by_name: str
-    msi_location: Optional[str] = None
+    location: Optional[str] = None
     on_site_location: Optional[str] = None
     assigned_to: str | None = None
     created_at: datetime
@@ -213,7 +214,7 @@ def list_tickets(
       u.last_name,
       t.status,
       t.priority,
-      t.msi_location,
+      t.location,
       t.on_site_location,
       t.assigned_to,
       t.created_at,
@@ -272,7 +273,7 @@ def create_ticket(
     cur.execute(
         """
         INSERT INTO tickets
-          (title, description, submitted_by, status, priority,
+          (title, description, submitted_by, location, status, priority,
            created_at, updated_at, screenshot, cc_email)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
@@ -645,7 +646,7 @@ def get_ticket(ticket_id: int):
         raise HTTPException(status_code=404, detail="Ticket not found")
 
     cols = [
-        "id","title","description","submitted_by","cc_email","status","priority",
+        "id","title","description","submitted_by","cc_email","status","priority", "location",
         "assigned_to","created_at","updated_at","archived","screenshot"
     ]
     return TicketOut(**dict(zip(cols, row)))
