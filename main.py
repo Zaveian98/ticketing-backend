@@ -81,6 +81,8 @@ class TicketIn(BaseModel):
 class TicketOut(TicketIn):
     id: int
     submitted_by_name: str
+    msi_location: Optional[str] = None
+    on_site_location: Optional[str] = None
     assigned_to: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -211,6 +213,8 @@ def list_tickets(
       u.last_name,
       t.status,
       t.priority,
+      t.msi_location,
+      t.on_site_location,
       t.assigned_to,
       t.created_at,
       t.updated_at,
