@@ -267,8 +267,8 @@ def create_ticket(ticket: TicketIn):
     now = datetime.now(timezone.utc)
 
     # 1️⃣ Insert into DB
-    conn = get_db_connection()
-    cur  = conn.cursor()
+    conn  = get_db_connection()
+    cur   = conn.cursor()
     cur.execute(
         """
         INSERT INTO tickets
@@ -293,8 +293,8 @@ def create_ticket(ticket: TicketIn):
     conn.commit()
     cur.close()
     conn.close()
-    
-# ── Lookup submitter’s first & last name ──
+
+    # ── Lookup submitter’s first & last name ──
     conn2 = get_db_connection()
     cur2  = conn2.cursor()
     cur2.execute(
@@ -308,7 +308,6 @@ def create_ticket(ticket: TicketIn):
     first, last = name_row
     submitted_by_name = (first + " " + last).strip()
 
-
     # 2️⃣ Notify support with styled HTML
     support_html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -316,14 +315,18 @@ def create_ticket(ticket: TicketIn):
   <meta charset="UTF-8" />
   <title>New Ticket #{ticket_id}</title>
   <style>
-    body {{ margin:0; padding:0; background:linear-gradient(135deg,#e0eafc,#cfdef3); font-family:Arial,sans-serif; }}
-    .card {{ max-width:500px; margin:40px auto; background:#fff; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); overflow:hidden; }}
+    body {{ margin:0; padding:0; background:#f4f4f7; font-family:Arial,sans-serif; }}
+    .card {{ max-width:500px; margin:40px auto; background:#fff; border-radius:8px;
+             box-shadow:0 4px 12px rgba(0,0,0,0.15); overflow:hidden; }}
     .header {{ background:#0052cc; color:#fff; padding:16px; text-align:center; }}
     .header h1 {{ margin:0; font-size:1.4rem; }}
     .content {{ padding:24px; color:#333; line-height:1.6; }}
     .content ul {{ padding-left:20px; }}
-    .content a.button {{ display:inline-block; margin-top:16px; padding:10px 18px; background:#0052cc; color:#fff; text-decoration:none; border-radius:4px; font-weight:bold; }}
-    .footer {{ text-align:center; padding:12px; font-size:12px; color:#777; background:#f4f4f4; }}
+    .content a.button {{ display:inline-block; margin-top:16px; padding:10px 18px;
+                         background:#0052cc; color:#fff; text-decoration:none;
+                         border-radius:4px; font-weight:bold; }}
+    .footer {{ text-align:center; padding:12px; font-size:12px; color:#777;
+              background:#f4f4f4; }}
   </style>
 </head>
 <body>
@@ -333,16 +336,13 @@ def create_ticket(ticket: TicketIn):
     </div>
     <div class="content">
       <p>Hello Support Team,</p>
-      <p>A new ticket has been created:</p>
       <ul>
         <li><strong>Ticket #:</strong> {ticket_id}</li>
         <li><strong>Title:</strong> {ticket.title}</li>
         <li><strong>Description:</strong> {ticket.description}</li>
         <li><strong>Submitted by:</strong> {submitted_by_name}</li>
       </ul>
-      <a href="https://support.msistaff.com/admin" class="button">
-        View Ticket
-      </a>
+      <a href="https://support.msistaff.com/admin" class="button">View Ticket</a>
     </div>
     <div class="footer">
       &copy; {now.year} MSI Staff Inc. — <a href="https://support.msistaff.com">Support Portal</a>
@@ -360,11 +360,53 @@ def create_ticket(ticket: TicketIn):
     except Exception as e:
         logger.error("Failed to notify support: %s", e, exc_info=True)
 
-    # 3️⃣ Notify the submitter
-    user_html = f"""
-      <h1>Your ticket #{ticket_id} has been received</h1>
-      <p>We’ve received your ticket &quot;{ticket.title}&quot; and will notify you when it’s resolved or closed.</p>
-    """
+    # 3️⃣ Notify the submitter with styled confirmation
+    user_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Your Ticket #{ticket_id} Received</title>
+  <style>
+    body {{ margin:0; padding:0; background:#f4f4f7; font-family:Arial,sans-serif; }}
+    .container {{ max-width:600px; margin:40px auto; background:#fff; border-radius:8px;
+                  box-shadow:0 4px 12px rgba(0,0,0,0.1); overflow:hidden; }}
+    .header {{ background:#0052cc; color:#fff; padding:20px; text-align:center; }}
+    .header h1 {{ margin:0; font-size:1.5rem; }}
+    .content {{ padding:24px; color:#333; line-height:1.5; }}
+    .button {{ display:inline-block; padding:12px 20px; background:#0052cc;
+               color:#fff; text-decoration:none; border-radius:4px; font-weight:bold; }}
+    .footer {{ background:#f4f4f7; text-align:center; padding:16px;
+               font-size:12px; color:#777; }}
+    .footer a {{ color:#0052cc; text-decoration:none; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Your Ticket #{ticket_id} Is In! 🎉</h1>
+    </div>
+    <div class="content">
+      <p>Hi there,</p>
+      <p>Thanks for reaching out. We’ve received your ticket:</p>
+      <ul>
+        <li><strong>Ticket #:</strong> {ticket_id}</li>
+        <li><strong>Title:</strong> {ticket.title}</li>
+      </ul>
+      <p>Check its status any time:</p>
+      <p style="text-align:center;">
+        <a href="https://support.msistaff.com/tickets/{ticket_id}" class="button">
+          View Your Ticket
+        </a>
+      </p>
+      <p>Thanks,<br />The MSI Support Team</p>
+    </div>
+    <div class="footer">
+      &copy; {now.year} MSI Staff Inc. — <a href="https://support.msistaff.com">Support Portal</a>
+    </div>
+  </div>
+</body>
+</html>
+"""
     try:
         send_email(
             to=ticket.submitted_by,
@@ -378,9 +420,9 @@ def create_ticket(ticket: TicketIn):
     # 4️⃣ CC notification (if provided)
     if ticket.cc_email:
         cc_html = f"""
-          <h1>Ticket #{ticket_id} Submitted (CC)</h1>
-          <p>You were CC’d on ticket &quot;<strong>{ticket.title}</strong>&quot; submitted by {submitted_by_name}.</p>
-          <p><strong>Description:</strong> {ticket.description}</p>
+        <h1>Ticket #{ticket_id} Submitted (CC)</h1>
+        <p>You were CC’d on ticket <strong>{ticket.title}</strong> submitted by {submitted_by_name}.</p>
+        <p><strong>Description:</strong> {ticket.description}</p>
         """
         try:
             send_email(
@@ -389,8 +431,7 @@ def create_ticket(ticket: TicketIn):
                 html=cc_html
             )
         except Exception as e:
-            logger.error("Failed to send CC to %s: %s",
-                         ticket.cc_email, e, exc_info=True)
+            logger.error("Failed to send CC to %s: %s", ticket.cc_email, e, exc_info=True)
 
     # 5️⃣ Return the new ticket record
     return TicketOut(
@@ -408,6 +449,7 @@ def create_ticket(ticket: TicketIn):
         archived=False,
         screenshot=ticket.screenshot,
     )
+
 
 
 
