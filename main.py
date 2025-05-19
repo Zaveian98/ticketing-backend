@@ -9,6 +9,8 @@ import logging
 from fastapi import Form, File, UploadFile
 from email_helper import send_email
 from db import archive_ticket_in_db, get_user_email_for_ticket
+from fastapi import BackgroundTasks
+
 
 
 # configure root logger at DEBUG (you can bump to INFO later)
@@ -262,9 +264,13 @@ def list_tickets(
 from datetime import datetime, timezone
 
 @app.post("/tickets", response_model=TicketOut)
-def create_ticket(ticket: TicketIn):
-    """Create a new ticket and email support, the submitter, and optional CC."""
+def create_ticket(
+    ticket: TicketIn,
+    background_tasks: BackgroundTasks,   # ← added here
+):
     now = datetime.now(timezone.utc)
+    ...
+
 
     # 1️⃣ Insert into DB
     conn  = get_db_connection()
@@ -352,11 +358,12 @@ def create_ticket(ticket: TicketIn):
 </html>
 """
     try:
-        send_email(
-            to="support@msistaff.com",
-            subject=f"[MSI] New Ticket #{ticket_id} Submitted",
-            html=support_html
-        )
+        background_tasks.add_task(
+        send_email,
+        "support@msistaff.com",
+        f"[MSI] New Ticket #{ticket_id} Submitted",
+        support_html
+    )
     except Exception as e:
         logger.error("Failed to notify support: %s", e, exc_info=True)
 
@@ -411,10 +418,11 @@ def create_ticket(ticket: TicketIn):
 </html>
 """
     try:
-        send_email(
-            to=ticket.submitted_by,
-            subject=f"Your Ticket #{ticket_id} Received",
-            html=user_html
+        background_tasks.add_task(
+            send_email,
+            ticket.submitted_by,
+            f"Your Ticket #{ticket_id} Received",
+            user_html 
         )
     except Exception as e:
         logger.error("Failed to send confirmation to user %s: %s",
@@ -428,11 +436,14 @@ def create_ticket(ticket: TicketIn):
         <p><strong>Description:</strong> {ticket.description}</p>
         """
         try:
-            send_email(
-                to=ticket.cc_email,
-                subject=f"You were CC’d on Ticket #{ticket_id}",
-                html=cc_html
+            if ticket.cc_email:
+               background_tasks.add_task(
+               send_email,
+               ticket.cc_email,
+               f"You were CC’d on Ticket #{ticket_id}",
+               cc_html
             )
+
         except Exception as e:
             logger.error("Failed to send CC to %s: %s", ticket.cc_email, e, exc_info=True)
 
