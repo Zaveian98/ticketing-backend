@@ -586,12 +586,14 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
     if new_status in ("Resolved", "Closed"):
     
      html = jinja_env.get_template("status_notification.html").render(
-        ticket_id    = ticket_id,
-        title        = result["title"],
-        status_lower = new_status.lower(),
-        submitted_by = result["submitted_by"],
-        year         = datetime.now(timezone.utc).year,
-    )
+    ticket_id    = ticket_id,
+    title        = result["title"],
+    status       = new_status,            # ← add this
+    status_lower = new_status.lower(),
+    submitted_by = result["submitted_by"],
+    year         = datetime.now(timezone.utc).year,
+)
+
 
     subject = f"Your Ticket #{ticket_id} {new_status}"
 
