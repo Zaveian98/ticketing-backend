@@ -1,0 +1,42 @@
+<!-- templates/status_notification.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ticket #{{ ticket_id }} {{ status }}</title>
+  <style>
+    body { margin:0; padding:0; background:#f4f4f7; font-family:Arial,sans-serif; }
+    .container { max-width:600px; margin:40px auto; background:#fff; border-radius:8px;
+                 box-shadow:0 4px 12px rgba(0,0,0,0.1); overflow:hidden; }
+    .header { background:#0052cc; color:#fff; padding:20px; text-align:center; }
+    .header h1 { margin:0; font-size:1.5rem; }
+    .content { padding:24px; color:#333; line-height:1.5; }
+    .button { display:inline-block; padding:12px 20px; background:#0052cc;
+               color:#fff; text-decoration:none; border-radius:4px; font-weight:bold; }
+    .footer { background:#f4f4f7; text-align:center; padding:16px;
+               font-size:12px; color:#777; }
+    .footer a { color:#0052cc; text-decoration:none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Your Ticket #{{ ticket_id }} Is {{ status }}! 🎉</h1>
+    </div>
+    <div class="content">
+      <p>Hi there,</p>
+      <p>Your ticket titled “<strong>{{ title }}</strong>” has been <strong>{{ status_lower }}</strong>.</p>
+      <p>You can view the details or open a follow-up here:</p>
+      <p style="text-align:center;">
+        <a href="https://support.msistaff.com/ticketboard?user_email={{ submitted_by }}" class="button">
+          View Your Ticket
+        </a>
+      </p>
+      <p>Thanks,<br />The MSI Support Team</p>
+    </div>
+    <div class="footer">
+      &copy; {{ year }} MSI Staff Inc. — <a href="https://support.msistaff.com">Support Portal</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -11,9 +11,12 @@ from email_helper import send_email
 from db import archive_ticket_in_db, get_user_email_for_ticket
 from fastapi import BackgroundTasks
 from email_helper import send_welcome_email
+from jinja2 import Environment, FileSystemLoader
+import os
 
 
-
+templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+jinja_env    = Environment(loader=FileSystemLoader(templates_dir))
 
 # configure root logger at DEBUG (you can bump to INFO later)
 logging.basicConfig(level=logging.DEBUG)
@@ -542,7 +545,7 @@ class UserOut(BaseModel):
 
 
 @app.patch("/tickets/{ticket_id}", response_model=TicketOut)
-def patch_ticket(ticket_id: int, changes: TicketUpdate):
+def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: BackgroundTasks,):
     conn = get_db_connection()
     cur  = conn.cursor()
 
@@ -576,16 +579,28 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate):
 
     # ── Send notification if status changed to Resolved or Closed ──
     new_status = result.get("status")
+        # ── Send notification if status changed to Resolved or Closed ──
+    new_status = result.get("status")
     if new_status in ("Resolved", "Closed"):
-        html = f"""
-            <h1>Ticket #{ticket_id} {new_status}</h1>
-            <p>Your ticket "<strong>{result['title']}</strong>" has been <strong>{new_status.lower()}</strong>.</p>
-        """
-        send_email(
-            to=result["submitted_by"],
-            subject=f"Your Ticket #{ticket_id} {new_status}",
-            html=html
-        )
+    
+     html = jinja_env.get_template("status_notification.html").render(
+        ticket_id    = ticket_id,
+        title        = result["title"],
+        status_lower = new_status.lower(),
+        submitted_by = result["submitted_by"],
+        year         = datetime.now(timezone.utc).year,
+    )
+
+    subject = f"Your Ticket #{ticket_id} {new_status}"
+
+    # ← This line schedules the email to send in the background:
+    background_tasks.add_task(
+        send_email,
+        result["submitted_by"],  # recipient
+        subject,                 # email subject
+        html                     # email body (HTML)
+    )
+
 
     print("Updated ticket:", result)  # Add this line
     
