@@ -576,6 +576,8 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
 
     # Build a dict of the updated row
     result = dict(zip(cols, updated_row))
+    
+    result["submitted_by_name"] = result["submitted_by"]
 
     # ── Send notification if status changed to Resolved or Closed ──
     new_status = result.get("status")
