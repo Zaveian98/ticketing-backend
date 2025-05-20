@@ -72,18 +72,16 @@ class TicketIn(BaseModel):
     title: str
     description: str
     submitted_by: str
-    location: Optional[str] = None
     cc_email: Optional[str] = None 
     status: str = "Open"
     priority: str = "Medium"
     screenshot: str | None = None
+    location: Optional[str] = None
 
 # Output model for returning tickets
 class TicketOut(TicketIn):
     id: int
     submitted_by_name: str
-    location: Optional[str] = None
-    on_site_location: Optional[str] = None
     assigned_to: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -215,7 +213,6 @@ def list_tickets(
       t.status,
       t.priority,
       t.location,
-      t.on_site_location,
       t.assigned_to,
       t.created_at,
       t.updated_at,
@@ -274,7 +271,7 @@ def create_ticket(
         """
         INSERT INTO tickets
           (title, description, submitted_by, location, status, priority,
-           created_at, updated_at, screenshot, cc_email)
+           created_at, updated_at, screenshot, cc_email,)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
@@ -282,6 +279,7 @@ def create_ticket(
             ticket.title,
             ticket.description,
             ticket.submitted_by,
+            ticket.location,  
             ticket.status,
             ticket.priority,
             now,
@@ -631,7 +629,7 @@ def get_ticket(ticket_id: int):
     cur  = conn.cursor()
     cur.execute(
         """
-        SELECT id, title, description, submitted_by, cc_email, status, priority,
+        SELECT id, title, description, submitted_by, cc_email, status, priority, location,
                assigned_to, created_at, updated_at, archived, screenshot
         FROM tickets
         WHERE id = %s
@@ -646,7 +644,8 @@ def get_ticket(ticket_id: int):
         raise HTTPException(status_code=404, detail="Ticket not found")
 
     cols = [
-        "id","title","description","submitted_by","cc_email","status","priority", "location",
+        "id","title","description","submitted_by","cc_email","status","priority", 
+        "location",
         "assigned_to","created_at","updated_at","archived","screenshot"
     ]
     return TicketOut(**dict(zip(cols, row)))
