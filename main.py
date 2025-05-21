@@ -271,26 +271,27 @@ def create_ticket(
     conn  = get_db_connection()
     cur   = conn.cursor()
     cur.execute(
-        """
-        INSERT INTO tickets
-          (title, description, submitted_by, location, status, priority,
-           created_at, updated_at, screenshot, cc_email,)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-        """,
-        (
-            ticket.title,
-            ticket.description,
-            ticket.submitted_by,
-            ticket.location,  
-            ticket.status,
-            ticket.priority,
-            now,
-            now,
-            ticket.screenshot,
-            ticket.cc_email,
-        ),
-    )
+    """
+    INSERT INTO tickets
+      (title, description, submitted_by, location, status, priority,
+       created_at, updated_at, screenshot, cc_email)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    RETURNING id
+    """,
+    (
+        ticket.title,
+        ticket.description,
+        ticket.submitted_by,
+        ticket.location,
+        ticket.status,
+        ticket.priority,
+        now,
+        now,
+        ticket.screenshot,
+        ticket.cc_email,
+    ),
+)
+
     ticket_id = cur.fetchone()[0]
     conn.commit()
     cur.close()
