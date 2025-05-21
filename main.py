@@ -427,22 +427,63 @@ def create_ticket(
 
     # 4️⃣ CC notification (if provided)
     if ticket.cc_email:
-        cc_html = f"""
-        <h1>Ticket #{ticket_id} Submitted (CC)</h1>
-        <p>You were CC’d on ticket <strong>{ticket.title}</strong> submitted by {submitted_by_name}.</p>
-        <p><strong>Description:</strong> {ticket.description}</p>
-        """
-        try:
-            if ticket.cc_email:
-               background_tasks.add_task(
-               send_email,
-               ticket.cc_email,
-               f"You were CC’d on Ticket #{ticket_id}",
-               cc_html
-            )
+     cc_html = f"""<!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Ticket #{ticket_id} CC Notification</title>
+      <style>
+        body {{ margin:0; padding:0; background:#f4f4f7; font-family:Arial,sans-serif; }}
+        .card {{ max-width:500px; margin:40px auto; background:#fff; border-radius:8px;
+                 box-shadow:0 4px 12px rgba(0,0,0,0.15); overflow:hidden; }}
+        .header {{ background:#0052cc; color:#fff; padding:16px; text-align:center; }}
+        .header h1 {{ margin:0; font-size:1.4rem; }}
+        .content {{ padding:24px; color:#333; line-height:1.6; }}
+        .content ul {{ padding-left:20px; }}
+        .footer {{ text-align:center; padding:12px; font-size:12px; color:#777;
+                  background:#f4f4f7; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>You Were CC’d on Ticket #{ticket_id}</h1>
+    </div>
+    <div class="content">
+      <p>Hello,</p>
+      <ul>
+        <li><strong>Ticket #:</strong> {ticket_id}</li>
+        <li><strong>Title:</strong> {ticket.title}</li>
+        <li><strong>Submitted by:</strong> {submitted_by_name}</li>
+      </ul>
+      <p><strong>Description:</strong></p>
+      <p>{ticket.description}</p>
+      <p style="text-align:center; margin-top:24px;">
+        <a href="https://support.msistaff.com/ticketboard?user_email={ticket.submitted_by}"
+           style="display:inline-block; padding:10px 20px; background:#0052cc; color:#fff;
+                  text-decoration:none; border-radius:4px;">
+          View the Ticket
+        </a>
+      </p>
+    </div>
+    <div class="footer">
+      &copy; {now.year} MSI Staff Inc. — <a href="https://support.msistaff.com">Support Portal</a>
+    </div>
+  </div>
+</body>
+</html>
+"""
+    try:
+        background_tasks.add_task(
+            send_email,
+            ticket.cc_email,
+            f"You were CC’d on Ticket #{ticket_id}",
+            cc_html
+        )
+    except Exception as e:
+        logger.error("Failed to send CC to %s: %s", ticket.cc_email, e, exc_info=True)
 
-        except Exception as e:
-            logger.error("Failed to send CC to %s: %s", ticket.cc_email, e, exc_info=True)
+
 
     # 5️⃣ Return the new ticket record
     return TicketOut(
