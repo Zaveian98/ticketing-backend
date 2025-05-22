@@ -527,7 +527,7 @@ class UserOut(BaseModel):
 
 
 @app.patch("/tickets/{ticket_id}", response_model=TicketOut)
-def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: BackgroundTasks,):
+def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: BackgroundTasks):
     conn = get_db_connection()
     cur  = conn.cursor()
 
@@ -549,6 +549,7 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
         )
         conn.commit()
 
+    # ── Re-fetch the updated row ──
     cur.execute("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
     updated_row = cur.fetchone()
     cols        = [c[0] for c in cur.description]
@@ -556,42 +557,46 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
     cur.close()
     conn.close()
 
-    # Build a dict of the updated row
+    # ── Build a dict of the updated row ──
     result = dict(zip(cols, updated_row))
-    
+
+    # ── Build the `submitted_by_name` field ──
     result["submitted_by_name"] = result["submitted_by"]
+
+    # ── **NEW**: parse the raw JSON screenshot column into your screenshots list ──
+    raw = result.pop("screenshot", None) or "[]"
+    try:
+        parsed = json.loads(raw)
+        # if it's already a list, use it; otherwise wrap single URL in a list
+        result["screenshots"] = parsed if isinstance(parsed, list) else [parsed]
+    except (ValueError, TypeError):
+        # if JSON is invalid for some reason, just give an empty list
+        result["screenshots"] = []
 
     # ── Send notification if status changed to Resolved or Closed ──
     new_status = result.get("status")
-        # ── Send notification if status changed to Resolved or Closed ──
-    new_status = result.get("status")
     if new_status in ("Resolved", "Closed"):
-    
-     html = jinja_env.get_template("status_notification.html").render(
-    ticket_id    = ticket_id,
-    title        = result["title"],
-    status       = new_status,            # ← add this
-    status_lower = new_status.lower(),
-    submitted_by = result["submitted_by"],
-    year         = datetime.now(timezone.utc).year,
-)
+        html = jinja_env.get_template("status_notification.html").render(
+            ticket_id    = ticket_id,
+            title        = result["title"],
+            status       = new_status,
+            status_lower = new_status.lower(),
+            submitted_by = result["submitted_by"],
+            year         = datetime.now(timezone.utc).year,
+        )
+        subject = f"Your Ticket #{ticket_id} {new_status}"
+        background_tasks.add_task(
+            send_email,
+            result["submitted_by"],
+            subject,
+            html
+        )
 
+    print("Updated ticket:", result)
 
-    subject = f"Your Ticket #{ticket_id} {new_status}"
-
-    # ← This line schedules the email to send in the background:
-    background_tasks.add_task(
-        send_email,
-        result["submitted_by"],  # recipient
-        subject,                 # email subject
-        html                     # email body (HTML)
-    )
-
-
-    print("Updated ticket:", result)  # Add this line
-    
-    # Finally, return the updated ticket
+    # ── Finally, return the updated ticket ──
     return TicketOut(**result)
+
 
 @app.get("/users", response_model=List[UserOut])
 def list_users(role: Optional[str] = Query(None, description="Filter users by role, e.g. ?role=admin")):
