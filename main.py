@@ -324,6 +324,7 @@ async def create_ticket(
 
     for file in screenshots:
         dest = os.path.join(upload_dir, file.filename)
+        print("💾 Writing screenshot to:", dest)
         with open(dest, "wb") as out:
             out.write(await file.read())
         uploaded_urls.append(f"/static/uploads/{file.filename}")
