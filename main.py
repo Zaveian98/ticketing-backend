@@ -423,7 +423,8 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
 
 
 
-
+from typing import List, Optional
+from fastapi import BackgroundTasks, Form, File, UploadFile
 
 @app.post("/tasks", response_model=TaskOut)
 async def create_task(
