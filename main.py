@@ -116,6 +116,19 @@ class TicketOut(BaseModel):
     screenshots: List[str]  # ← list of URLs
     assigned_to: Optional[str] = None
     
+    from typing import Optional
+    from pydantic import BaseModel
+
+class TicketUpdate(BaseModel):
+    title:        Optional[str] = None
+    description:  Optional[str] = None
+    status:       Optional[str] = None
+    priority:     Optional[str] = None
+    updated_at:   Optional[datetime] = None
+    assigned_to: Optional[str] = None
+    archived:     Optional[bool]     = None 
+
+    
 class TaskIn(BaseModel):
     text: str
     completed: bool = False
@@ -303,135 +316,93 @@ def list_tickets(
 from fastapi import BackgroundTasks, Form, File, UploadFile
 from typing import List, Optional
 
-@app.post("/tickets", response_model=TicketOut)
-async def create_ticket(
-    background_tasks: BackgroundTasks,
-    title:        str               = Form(...),
-    description:  str               = Form(...),
-    submitted_by: str               = Form(...),
-    location:     Optional[str]     = Form(None),
-    status:       str               = Form(...),
-    priority:     str               = Form(...),
-    cc_email:     Optional[str]     = Form(None),
-    screenshots:  List[UploadFile]  = File([]),
-):
-    now = datetime.now(timezone.utc)
-
-    # ── 1️⃣ Save each screenshot and collect URLs ──
-    uploaded_urls: List[str] = []
-    upload_dir = "./static/uploads"
-    os.makedirs(upload_dir, exist_ok=True)
-
-    for file in screenshots:
-        dest = os.path.join(upload_dir, file.filename)
-        print("💾 Writing screenshot to:", dest)
-        with open(dest, "wb") as out:
-            out.write(await file.read())
-        uploaded_urls.append(f"/static/uploads/{file.filename}")
-
-    # ── 2️⃣ Insert into DB (store JSON list in screenshot column) ──
+@app.patch("/tickets/{ticket_id}", response_model=TicketOut)
+def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: BackgroundTasks,):
     conn = get_db_connection()
     cur  = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO tickets
-          (title, description, submitted_by, location, status, priority,
-           created_at, updated_at, screenshot, cc_email)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-        """,
-        (
-            title,
-            description,
-            submitted_by,
-            location,
-            status,
-            priority,
-            now,
-            now,
-            json.dumps(uploaded_urls),
-            cc_email,
-        ),
-    )
-    ticket_id = cur.fetchone()[0]
-    conn.commit()
+
+    cur.execute("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    update_data = {k: v for k, v in changes.dict().items() if v is not None}
+    if update_data:
+        set_clause = ", ".join(f"{k} = %s" for k in update_data.keys())
+        now        = datetime.now(timezone.utc)
+        params     = list(update_data.values()) + [now, ticket_id]
+        cur.execute(
+            f"UPDATE tickets SET {set_clause}, updated_at = %s WHERE id = %s",
+            params
+        )
+        conn.commit()
+
+    cur.execute("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
+    updated_row = cur.fetchone()
+    cols        = [c[0] for c in cur.description]
+
     cur.close()
     conn.close()
 
-    # ── 3️⃣ Lookup submitter’s name ──
-    conn2 = get_db_connection()
-    cur2  = conn2.cursor()
-    cur2.execute(
-        "SELECT first_name, last_name FROM users WHERE email = %s",
-        (submitted_by,),
-    )
-    first, last = cur2.fetchone() or ("", "")
-    cur2.close()
-    conn2.close()
-    submitted_by_name = (first + " " + last).strip()
+    # Build a dict of the updated row
+    result = dict(zip(cols, updated_row))
+    result["submitted_by_name"] = result["submitted_by"]
 
-    # ── 4️⃣ Notify support ──
-    support_html = f"""\
-<!DOCTYPE html>
-<html><body>
-  <h1>New Ticket #{ticket_id}</h1>
-  <p><strong>Title:</strong> {title}</p>
-  <p><strong>Description:</strong> {description}</p>
-  <p><strong>Submitted by:</strong> {submitted_by_name}</p>
-  <p><a href="https://support.msistaff.com/admin">View in Admin Panel</a></p>
-</body></html>"""
-    background_tasks.add_task(
-        send_email,
-        "support@msistaff.com",
-        f"[MSI] New Ticket #{ticket_id} Submitted",
-        support_html
-    )
-
-    # ── 5️⃣ Confirm to user ──
-    user_html = f"""\
+    # ── Send notification if status changed to Resolved or Closed ──
+    new_status = result.get("status")
+    if new_status in ("Resolved", "Closed"):
+        # ← only this block changed:
+        html = f"""\
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Your Ticket #{ticket_id} Received</title>
+    <title>Your Ticket #{ticket_id} {new_status}</title>
   </head>
-  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f2f2f2;">
+  <body style="margin:0;padding:0;background:#f2f2f2;font-family:Arial,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td align="center">
-          <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:20px;border-radius:8px;margin:20px auto;">
-            <tr>
-              <td style="text-align:center;padding-bottom:20px;">
-                <h2 style="color:#333333;">🎉 Your Ticket #{ticket_id} Is In!</h2>
+          <table width="600" cellpadding="0" cellspacing="0"
+                 style="background:#ffffff;border-radius:8px;overflow:hidden;margin:20px auto;">
+            <tr style="background:#0052cc;">
+              <td align="center" style="padding:20px;">
+                <h1 style="color:#ffffff;font-size:24px;margin:0;">
+                  Your Ticket #{ticket_id} Is {new_status}! 🎉
+                </h1>
               </td>
             </tr>
             <tr>
-              <td style="color:#555555;line-height:1.6;">
-                <p>Hi {first},</p>
-                <p>Thanks for reaching out—here’s what we’ve got on file:</p>
-                <ul>
-                  <li><strong>Ticket #:</strong> {ticket_id}</li>
-                  <li><strong>Title:</strong> {title}</li>
-                </ul>
+              <td style="padding:20px;color:#333333;line-height:1.6;">
+                <p>Hi there,</p>
+                <p>Your ticket titled “<strong>{result["title"]}</strong>” has been {new_status.lower()}.</p>
+                <p>You can view the details or open a follow-up here:</p>
                 <p style="text-align:center;margin:30px 0;">
                   <a
-                    href="https://support.msistaff.com/ticketboard?user_email={submitted_by}"
+                    href="https://support.msistaff.com/ticketboard?user_email={result["submitted_by"]}&ticket_id={ticket_id}"
                     style="
-                      background-color:#007bff;
+                      background:#0052cc;
                       color:#ffffff;
                       text-decoration:none;
                       padding:12px 24px;
                       border-radius:4px;
                       display:inline-block;
                     "
-                  >View Your Ticket</a>
+                  >
+                    View Your Ticket
+                  </a>
                 </p>
-                <p>Cheers,<br/>The MSI Support Team</p>
+                <p>Thanks,<br/>The MSI Support Team</p>
               </td>
             </tr>
             <tr>
-              <td style="font-size:12px;color:#999999;text-align:center;padding-top:20px;">
-                If you didn't submit this, just ignore this email.
+              <td style="background:#f2f2f2;color:#999999;font-size:12px;text-align:center;padding:10px;">
+                &copy; {datetime.now(timezone.utc).year} MSI Staff Inc. — 
+                <a href="https://support.msistaff.com" style="color:#0052cc;text-decoration:none;">
+                  Support Portal
+                </a>
               </td>
             </tr>
           </table>
@@ -441,48 +412,17 @@ async def create_ticket(
   </body>
 </html>
 """
-    background_tasks.add_task(
-        send_email,
-        submitted_by,
-        f"Your Ticket #{ticket_id} Received",
-        user_html
-    )
-
-    # ── 6️⃣ CC notification (if provided) ──
-    if cc_email:
-        cc_html = f"""\
-<!DOCTYPE html>
-<html><body>
-  <h1>You Were CC’d on Ticket #{ticket_id}</h1>
-  <p><strong>Title:</strong> {title}</p>
-  <p><strong>Description:</strong> {description}</p>
-  <p><strong>Submitted by:</strong> {submitted_by_name}</p>
-  <p><a href="https://support.msistaff.com/ticketboard?user_email={submitted_by}">View the Ticket</a></p>
-</body></html>"""
+        subject = f"Your Ticket #{ticket_id} {new_status}"
         background_tasks.add_task(
             send_email,
-            cc_email,
-            f"You were CC’d on Ticket #{ticket_id}",
-            cc_html
+            result["submitted_by"],
+            subject,
+            html
         )
 
-    # ── 7️⃣ Return the ticket, including screenshot URLs ──
-    return TicketOut(
-        id                = ticket_id,
-        title             = title,
-        description       = description,
-        submitted_by      = submitted_by,
-        submitted_by_name = submitted_by_name,
-        cc_email          = cc_email,
-        status            = status,
-        priority          = priority,
-        location          = location,
-        created_at        = now,
-        updated_at        = now,
-        archived          = False,
-        assigned_to       = None,
-        screenshots       = uploaded_urls,
-    )
+    print("Updated ticket:", result)
+    return TicketOut(**result)
+
 
 
 
@@ -545,17 +485,6 @@ async def create_task(
         updated_at=now
     )
 # --- NEW PATCH ROUTE ----------------------------------------------
-from typing import Optional
-from pydantic import BaseModel
-
-class TicketUpdate(BaseModel):
-    title:        Optional[str] = None
-    description:  Optional[str] = None
-    status:       Optional[str] = None
-    priority:     Optional[str] = None
-    updated_at:   Optional[datetime] = None
-    assigned_to: Optional[str] = None
-    archived:     Optional[bool]     = None 
 
 
 class UserOut(BaseModel):
