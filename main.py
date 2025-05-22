@@ -13,6 +13,8 @@ from fastapi import BackgroundTasks
 from email_helper import send_welcome_email
 from jinja2 import Environment, FileSystemLoader
 import os
+import json
+
 
 
 templates_dir = os.path.join(os.path.dirname(__file__), "templates")
@@ -79,17 +81,24 @@ class TicketIn(BaseModel):
     cc_email: Optional[str] = None 
     status: str = "Open"
     priority: str = "Medium"
-    screenshot: str | None = None
     location: Optional[str] = None
 
 # Output model for returning tickets
-class TicketOut(TicketIn):
+class TicketOut(BaseModel):
     id: int
+    title: str
+    description: str
+    submitted_by: str
     submitted_by_name: str
-    assigned_to: str | None = None
+    cc_email: Optional[str] = None
+    status: str
+    priority: str
+    location: Optional[str]
     created_at: datetime
     updated_at: datetime
     archived: bool
+    screenshots: List[str]  # ← list of URLs
+    assigned_to: Optional[str] = None
     
 class TaskIn(BaseModel):
     text: str
@@ -246,7 +255,7 @@ def list_tickets(
     cur.close()
     conn.close()
 
-    tickets = []
+    tickets: list[TicketOut] = []
     for row in rows:
         data = dict(zip(cols, row))
 
@@ -255,260 +264,158 @@ def list_tickets(
         last  = data.pop("last_name") or ""
         data["submitted_by_name"] = (first + " " + last).strip()
 
-
+        raw = data.pop("screenshot") or "[]"
+        data["screenshots"] = json.loads(raw)
+        
+        
         tickets.append(TicketOut(**data))
 
     return tickets
 
 
 
-from datetime import datetime, timezone
+from fastapi import BackgroundTasks, Form, File, UploadFile
+from typing import List, Optional
 
 @app.post("/tickets", response_model=TicketOut)
-def create_ticket(
-    ticket: TicketIn,
-    background_tasks: BackgroundTasks,   # ← added here
+async def create_ticket(
+    background_tasks: BackgroundTasks,
+    title:        str               = Form(...),
+    description:  str               = Form(...),
+    submitted_by: str               = Form(...),
+    location:     Optional[str]     = Form(None),
+    status:       str               = Form(...),
+    priority:     str               = Form(...),
+    cc_email:     Optional[str]     = Form(None),
+    screenshots:  List[UploadFile]  = File([]),
 ):
     now = datetime.now(timezone.utc)
-    ...
 
+    # ── 1️⃣ Save each screenshot and collect URLs ──
+    uploaded_urls: List[str] = []
+    upload_dir = "./static/uploads"
+    os.makedirs(upload_dir, exist_ok=True)
 
-    # 1️⃣ Insert into DB
-    conn  = get_db_connection()
-    cur   = conn.cursor()
+    for file in screenshots:
+        dest = os.path.join(upload_dir, file.filename)
+        with open(dest, "wb") as out:
+            out.write(await file.read())
+        uploaded_urls.append(f"/static/uploads/{file.filename}")
+
+    # ── 2️⃣ Insert into DB (store JSON list in screenshot column) ──
+    conn = get_db_connection()
+    cur  = conn.cursor()
     cur.execute(
-    """
-    INSERT INTO tickets
-      (title, description, submitted_by, location, status, priority,
-       created_at, updated_at, screenshot, cc_email)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    RETURNING id
-    """,
-    (
-        ticket.title,
-        ticket.description,
-        ticket.submitted_by,
-        ticket.location,
-        ticket.status,
-        ticket.priority,
-        now,
-        now,
-        ticket.screenshot,
-        ticket.cc_email,
-    ),
-)
-
+        """
+        INSERT INTO tickets
+          (title, description, submitted_by, location, status, priority,
+           created_at, updated_at, screenshot, cc_email)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        (
+            title,
+            description,
+            submitted_by,
+            location,
+            status,
+            priority,
+            now,
+            now,
+            json.dumps(uploaded_urls),
+            cc_email,
+        ),
+    )
     ticket_id = cur.fetchone()[0]
     conn.commit()
     cur.close()
     conn.close()
 
-    # ── Lookup submitter’s first & last name ──
+    # ── 3️⃣ Lookup submitter’s name ──
     conn2 = get_db_connection()
     cur2  = conn2.cursor()
     cur2.execute(
         "SELECT first_name, last_name FROM users WHERE email = %s",
-        (ticket.submitted_by,),
+        (submitted_by,),
     )
-    name_row = cur2.fetchone() or ("", "")
+    first, last = cur2.fetchone() or ("", "")
     cur2.close()
     conn2.close()
-
-    first, last = name_row
     submitted_by_name = (first + " " + last).strip()
 
-    # 2️⃣ Notify support with styled HTML
-    support_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>New Ticket #{ticket_id}</title>
-  <style>
-    body {{ margin:0; padding:0; background:#f4f4f7; font-family:Arial,sans-serif; }}
-    .card {{ max-width:500px; margin:40px auto; background:#fff; border-radius:8px;
-             box-shadow:0 4px 12px rgba(0,0,0,0.15); overflow:hidden; }}
-    .header {{ background:#0052cc; color:#fff; padding:16px; text-align:center; }}
-    .header h1 {{ margin:0; font-size:1.4rem; }}
-    .content {{ padding:24px; color:#333; line-height:1.6; }}
-    .content ul {{ padding-left:20px; }}
-    .content a.button {{ display:inline-block; margin-top:16px; padding:10px 18px;
-                         background:#0052cc; color:#fff; text-decoration:none;
-                         border-radius:4px; font-weight:bold; }}
-    .footer {{ text-align:center; padding:12px; font-size:12px; color:#777;
-              background:#f4f4f4; }}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="header">
-      <h1>New Ticket Submitted</h1>
-    </div>
-    <div class="content">
-      <p>Hello Support Team,</p>
-      <ul>
-        <li><strong>Ticket #:</strong> {ticket_id}</li>
-        <li><strong>Title:</strong> {ticket.title}</li>
-        <li><strong>Description:</strong> {ticket.description}</li>
-        <li><strong>Submitted by:</strong> {submitted_by_name}</li>
-      </ul>
-      <a href="https://support.msistaff.com/admin" class="button">View Ticket</a>
-    </div>
-    <div class="footer">
-      &copy; {now.year} MSI Staff Inc. — <a href="https://support.msistaff.com">Support Portal</a>
-    </div>
-  </div>
-</body>
-</html>
-"""
-    try:
-        background_tasks.add_task(
+    # ── 4️⃣ Notify support ──
+    support_html = f"""\
+<!DOCTYPE html>
+<html><body>
+  <h1>New Ticket #{ticket_id}</h1>
+  <p><strong>Title:</strong> {title}</p>
+  <p><strong>Description:</strong> {description}</p>
+  <p><strong>Submitted by:</strong> {submitted_by_name}</p>
+  <p><a href="https://support.msistaff.com/admin">View in Admin Panel</a></p>
+</body></html>"""
+    background_tasks.add_task(
         send_email,
         "support@msistaff.com",
         f"[MSI] New Ticket #{ticket_id} Submitted",
         support_html
     )
-    except Exception as e:
-        logger.error("Failed to notify support: %s", e, exc_info=True)
 
-    # 3️⃣ Notify the submitter with styled confirmation
-    user_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Your Ticket #{ticket_id} Received</title>
-  <style>
-    body {{ margin:0; padding:0; background:#f4f4f7; font-family:Arial,sans-serif; }}
-    .container {{ max-width:600px; margin:40px auto; background:#fff; border-radius:8px;
-                  box-shadow:0 4px 12px rgba(0,0,0,0.1); overflow:hidden; }}
-    .header {{ background:#0052cc; color:#fff; padding:20px; text-align:center; }}
-    .header h1 {{ margin:0; font-size:1.5rem; }}
-    .content {{ padding:24px; color:#333; line-height:1.5; }}
-    .button {{ display:inline-block; padding:12px 20px; background:#0052cc;
-               color:#fff; text-decoration:none; border-radius:4px; font-weight:bold; }}
-    .footer {{ background:#f4f4f7; text-align:center; padding:16px;
-               font-size:12px; color:#777; }}
-    .footer a {{ color:#0052cc; text-decoration:none; }}
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Your Ticket #{ticket_id} Is In! 🎉</h1>
-    </div>
-    <div class="content">
-      <p>Hi there,</p>
-      <p>Thanks for reaching out. We’ve received your ticket:</p>
-      <ul>
-        <li><strong>Ticket #:</strong> {ticket_id}</li>
-        <li><strong>Title:</strong> {ticket.title}</li>
-      </ul>
-      <p>Check its status any time:</p>
-      <p style="text-align:center;">
-        <a
-          href="https://support.msistaff.com/ticketboard?user_email={ticket.submitted_by}"
-          class="button"
-        >
-          View Your Ticket
-        </a>
-      </p>
-      <p>Thanks,<br />The MSI Support Team</p>
-    </div>
-    <div class="footer">
-      &copy; {now.year} MSI Staff Inc. — <a href="https://support.msistaff.com">Support Portal</a>
-    </div>
-  </div>
-</body>
-</html>
-"""
-    try:
+    # ── 5️⃣ Confirm to user ──
+    user_html = f"""\
+<!DOCTYPE html>
+<html><body>
+  <h1>Your Ticket #{ticket_id} Is In! 🎉</h1>
+  <p>Hi {first},</p>
+  <p>We’ve received your ticket:</p>
+  <ul>
+    <li><strong>Ticket #:</strong> {ticket_id}</li>
+    <li><strong>Title:</strong> {title}</li>
+  </ul>
+  <p><a href="https://support.msistaff.com/ticketboard?user_email={submitted_by}">View Your Ticket</a></p>
+  <p>Thanks,<br/>The MSI Support Team</p>
+</body></html>"""
+    background_tasks.add_task(
+        send_email,
+        submitted_by,
+        f"Your Ticket #{ticket_id} Received",
+        user_html
+    )
+
+    # ── 6️⃣ CC notification (if provided) ──
+    if cc_email:
+        cc_html = f"""\
+<!DOCTYPE html>
+<html><body>
+  <h1>You Were CC’d on Ticket #{ticket_id}</h1>
+  <p><strong>Title:</strong> {title}</p>
+  <p><strong>Description:</strong> {description}</p>
+  <p><strong>Submitted by:</strong> {submitted_by_name}</p>
+  <p><a href="https://support.msistaff.com/ticketboard?user_email={submitted_by}">View the Ticket</a></p>
+</body></html>"""
         background_tasks.add_task(
             send_email,
-            ticket.submitted_by,
-            f"Your Ticket #{ticket_id} Received",
-            user_html 
-        )
-    except Exception as e:
-        logger.error("Failed to send confirmation to user %s: %s",
-                     ticket.submitted_by, e, exc_info=True)
-
-    # 4️⃣ CC notification (if provided)
-    if ticket.cc_email:
-     cc_html = f"""<!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <title>Ticket #{ticket_id} CC Notification</title>
-      <style>
-        body {{ margin:0; padding:0; background:#f4f4f7; font-family:Arial,sans-serif; }}
-        .card {{ max-width:500px; margin:40px auto; background:#fff; border-radius:8px;
-                 box-shadow:0 4px 12px rgba(0,0,0,0.15); overflow:hidden; }}
-        .header {{ background:#0052cc; color:#fff; padding:16px; text-align:center; }}
-        .header h1 {{ margin:0; font-size:1.4rem; }}
-        .content {{ padding:24px; color:#333; line-height:1.6; }}
-        .content ul {{ padding-left:20px; }}
-        .footer {{ text-align:center; padding:12px; font-size:12px; color:#777;
-                  background:#f4f4f7; }}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="header">
-      <h1>You Were CC’d on Ticket #{ticket_id}</h1>
-    </div>
-    <div class="content">
-      <p>Hello,</p>
-      <ul>
-        <li><strong>Ticket #:</strong> {ticket_id}</li>
-        <li><strong>Title:</strong> {ticket.title}</li>
-        <li><strong>Submitted by:</strong> {submitted_by_name}</li>
-      </ul>
-      <p><strong>Description:</strong></p>
-      <p>{ticket.description}</p>
-      <p style="text-align:center; margin-top:24px;">
-        <a href="https://support.msistaff.com/ticketboard?user_email={ticket.submitted_by}"
-           style="display:inline-block; padding:10px 20px; background:#0052cc; color:#fff;
-                  text-decoration:none; border-radius:4px;">
-          View the Ticket
-        </a>
-      </p>
-    </div>
-    <div class="footer">
-      &copy; {now.year} MSI Staff Inc. — <a href="https://support.msistaff.com">Support Portal</a>
-    </div>
-  </div>
-</body>
-</html>
-"""
-    try:
-        background_tasks.add_task(
-            send_email,
-            ticket.cc_email,
+            cc_email,
             f"You were CC’d on Ticket #{ticket_id}",
             cc_html
         )
-    except Exception as e:
-        logger.error("Failed to send CC to %s: %s", ticket.cc_email, e, exc_info=True)
 
-
-
-    # 5️⃣ Return the new ticket record
+    # ── 7️⃣ Return the ticket, including screenshot URLs ──
     return TicketOut(
-        id=ticket_id,
-        title=ticket.title,
-        description=ticket.description,
-        submitted_by=ticket.submitted_by,
-        submitted_by_name=submitted_by_name,
-        cc_email=ticket.cc_email,
-        status=ticket.status,
-        priority=ticket.priority,
-        assigned_to=None,
-        created_at=now,
-        updated_at=now,
-        archived=False,
-        screenshot=ticket.screenshot,
+        id                = ticket_id,
+        title             = title,
+        description       = description,
+        submitted_by      = submitted_by,
+        submitted_by_name = submitted_by_name,
+        cc_email          = cc_email,
+        status            = status,
+        priority          = priority,
+        location          = location,
+        created_at        = now,
+        updated_at        = now,
+        archived          = False,
+        assigned_to       = None,
+        screenshots       = uploaded_urls,
     )
-
-
 
 
 
@@ -687,17 +594,29 @@ def list_users(role: Optional[str] = Query(None, description="Filter users by ro
 
 # ─── Task Endpoints ───────────────────────────────────────────────────────────
 
+from fastapi import HTTPException
+import json
+
 @app.get("/tickets/{ticket_id}", response_model=TicketOut)
 def get_ticket(ticket_id: int):
-    """
-    Retrieve a single ticket by ID.
-    """
     conn = get_db_connection()
     cur  = conn.cursor()
     cur.execute(
         """
-        SELECT id, title, description, submitted_by, cc_email, status, priority, location,
-               assigned_to, created_at, updated_at, archived, screenshot
+        SELECT
+          id,
+          title,
+          description,
+          submitted_by,
+          cc_email,
+          status,
+          priority,
+          location,
+          assigned_to,
+          created_at,
+          updated_at,
+          archived,
+          screenshot
         FROM tickets
         WHERE id = %s
         """,
@@ -710,12 +629,23 @@ def get_ticket(ticket_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    cols = [
-        "id","title","description","submitted_by","cc_email","status","priority", 
-        "location",
-        "assigned_to","created_at","updated_at","archived","screenshot"
+    # 1) Zip columns + row into a dict
+    cols   = [
+      "id","title","description","submitted_by","cc_email","status","priority",
+      "location","assigned_to","created_at","updated_at","archived","screenshot"
     ]
-    return TicketOut(**dict(zip(cols, row)))
+    result = dict(zip(cols, row))
+
+    # 2) Build submitted_by_name
+    result["submitted_by_name"] = result["submitted_by"]
+
+    # 3) Parse the JSON‐encoded screenshot field into your list
+    raw = result.pop("screenshot") or "[]"
+    result["screenshots"] = json.loads(raw)
+
+    # 4) Return
+    return TicketOut(**result)
+
 
 @app.get("/tasks", response_model=list[TaskOut])
 def list_tasks(
