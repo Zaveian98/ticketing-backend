@@ -29,6 +29,10 @@ logger = logging.getLogger("uvicorn.error")
 
 from fastapi.staticfiles import StaticFiles      
 
+BASE_DIR    = os.path.dirname(__file__)
+STATIC_DIR  = os.path.join(BASE_DIR, "static")
+UPLOADS_DIR = os.path.join(STATIC_DIR, "uploads")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 app = FastAPI(debug=True)                        
 
