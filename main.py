@@ -265,13 +265,22 @@ def list_tickets(
         last  = data.pop("last_name") or ""
         data["submitted_by_name"] = (first + " " + last).strip()
 
-        raw = data.pop("screenshot") or "[]"
-        data["screenshots"] = json.loads(raw)
-        
-        
+        # 3️⃣ Build the `screenshots` list safely
+        raw = data.pop("screenshot")
+        if not raw:
+            screenshots = []
+        else:
+            try:
+                parsed = json.loads(raw)
+                screenshots = parsed if isinstance(parsed, list) else [parsed]
+            except (ValueError, json.JSONDecodeError):
+                screenshots = [raw]
+        data["screenshots"] = screenshots
+
         tickets.append(TicketOut(**data))
 
     return tickets
+
 
 
 
