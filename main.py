@@ -390,17 +390,57 @@ async def create_ticket(
     # ── 5️⃣ Confirm to user ──
     user_html = f"""\
 <!DOCTYPE html>
-<html><body>
-  <h1>Your Ticket #{ticket_id} Is In! 🎉</h1>
-  <p>Hi {first},</p>
-  <p>We’ve received your ticket:</p>
-  <ul>
-    <li><strong>Ticket #:</strong> {ticket_id}</li>
-    <li><strong>Title:</strong> {title}</li>
-  </ul>
-  <p><a href="https://support.msistaff.com/ticketboard?user_email={submitted_by}">View Your Ticket</a></p>
-  <p>Thanks,<br/>The MSI Support Team</p>
-</body></html>"""
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Your Ticket #{ticket_id} Received</title>
+  </head>
+  <body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f2f2f2;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:20px;border-radius:8px;margin:20px auto;">
+            <tr>
+              <td style="text-align:center;padding-bottom:20px;">
+                <h2 style="color:#333333;">🎉 Your Ticket #{ticket_id} Is In!</h2>
+              </td>
+            </tr>
+            <tr>
+              <td style="color:#555555;line-height:1.6;">
+                <p>Hi {first},</p>
+                <p>Thanks for reaching out—here’s what we’ve got on file:</p>
+                <ul>
+                  <li><strong>Ticket #:</strong> {ticket_id}</li>
+                  <li><strong>Title:</strong> {title}</li>
+                </ul>
+                <p style="text-align:center;margin:30px 0;">
+                  <a
+                    href="https://support.msistaff.com/ticketboard?user_email={submitted_by}"
+                    style="
+                      background-color:#007bff;
+                      color:#ffffff;
+                      text-decoration:none;
+                      padding:12px 24px;
+                      border-radius:4px;
+                      display:inline-block;
+                    "
+                  >View Your Ticket</a>
+                </p>
+                <p>Cheers,<br/>The MSI Support Team</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;color:#999999;text-align:center;padding-top:20px;">
+                If you didn't submit this, just ignore this email.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
     background_tasks.add_task(
         send_email,
         submitted_by,
@@ -443,6 +483,7 @@ async def create_ticket(
         assigned_to       = None,
         screenshots       = uploaded_urls,
     )
+
 
 
 
