@@ -232,6 +232,7 @@ def list_tickets(
       t.priority,
       t.location,
       t.assigned_to,
+      t.cc_email
       t.created_at,
       t.updated_at,
       t.archived,
