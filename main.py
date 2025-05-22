@@ -116,17 +116,15 @@ class TicketOut(BaseModel):
     screenshots: List[str]  # ← list of URLs
     assigned_to: Optional[str] = None
     
-    from typing import Optional
-    from pydantic import BaseModel
-
+    # ─── Define your update model *after* all the BaseModel outputs ───
 class TicketUpdate(BaseModel):
-    title:        Optional[str] = None
-    description:  Optional[str] = None
-    status:       Optional[str] = None
-    priority:     Optional[str] = None
+    title:        Optional[str]   = None
+    description:  Optional[str]   = None
+    status:       Optional[str]   = None
+    priority:     Optional[str]   = None
     updated_at:   Optional[datetime] = None
-    assigned_to: Optional[str] = None
-    archived:     Optional[bool]     = None 
+    assigned_to:  Optional[str]   = None
+    archived:     Optional[bool]   = None
 
     
 class TaskIn(BaseModel):
