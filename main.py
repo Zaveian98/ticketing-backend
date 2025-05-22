@@ -113,8 +113,8 @@ class TicketOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     archived: bool
-    screenshots: List[str]  # ← list of URLs
-    assigned_to: Optional[str] = None
+    
+
     
     # ─── Define your update model *after* all the BaseModel outputs ───
 class TicketUpdate(BaseModel):
@@ -312,7 +312,7 @@ def list_tickets(
 
 
 from fastapi import BackgroundTasks, Form, File, UploadFile
-from typing import List, Optional
+
 
 @app.patch("/tickets/{ticket_id}", response_model=TicketOut)
 def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: BackgroundTasks,):
