@@ -27,8 +27,20 @@ logger = logging.getLogger("uvicorn.error")
 
 
 
+from fastapi.staticfiles import StaticFiles      
 
-app = FastAPI(debug=True)
+
+app = FastAPI(debug=True)                        
+
+# … your CORS setup, routes, etc. …
+
+# Serve ./static under /static
+app.mount(
+    "/static",
+    StaticFiles(directory="static"),
+    name="static"
+)
+
 
 
 origins = [
