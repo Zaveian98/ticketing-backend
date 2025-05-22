@@ -65,6 +65,7 @@ class RegisterRequest(BaseModel):
     company: str 
     password: str
     role: str = "User" 
+    send_welcome_email: bool = False
 
 class LoginRequest(BaseModel):
     email: str
@@ -137,16 +138,21 @@ def register_user(user: RegisterRequest, background_tasks: BackgroundTasks):
         cursor.close()
         conn.close()
 
-    # 2️⃣ Send styled “set password” email
-        # 2️⃣ Queue styled “set password” email in the background
-    logger.debug("Register_user: scheduling welcome email to %s with role %s", user.email, user.role)
-    background_tasks.add_task(
-        send_welcome_email,
-        user.email,
-        user.first_name,
-        user.password,
-        f"https://support.msistaff.com/change-password?email={user.email}"
-    )
+        # 2️⃣ Send styled “set password” email *only if* requested
+    if user.send_welcome_email:
+        logger.debug(
+            "Register_user: scheduling welcome email to %s with role %s",
+            user.email,
+            user.role
+        )
+        background_tasks.add_task(
+            send_welcome_email,
+            user.email,
+            user.first_name,
+            user.password,
+            f"https://support.msistaff.com/change-password?email={user.email}"
+        )
+
 
 
     # 3️⃣ Return success message
