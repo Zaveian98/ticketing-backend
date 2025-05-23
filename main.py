@@ -14,6 +14,7 @@ from email_helper import send_welcome_email
 from jinja2 import Environment, FileSystemLoader
 import os
 import json
+from zoneinfo import ZoneInfo   # Python 3.9+
 
 
 
@@ -316,7 +317,11 @@ async def create_ticket(
     cc_email:     Optional[str]     = Form(None),
     screenshots:  List[UploadFile]  = File([]),
 ):
-    now = datetime.now(timezone.utc)
+    now_utc   = datetime.now(timezone.utc)              # current UTC time
+    now_local = now_utc.astimezone(ZoneInfo("America/Chicago"))  # converts to CT
+    
+    now = now_local
+
 
     # 🚨 auto‑upgrade Rensa tickets
     if category == "Start Date (Rensa)":
