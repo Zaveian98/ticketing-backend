@@ -553,13 +553,13 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
             admin_emails = [row[0] for row in cur2.fetchall()]
             cur2.close()
 
-            # 2️⃣ simple HTML alert
-            html = f"""
-            <h2>🚨 High‑Priority Ticket #{ticket_id}</h2>
-            <p><strong>Title:</strong> {row[1]}</p>
-            <p><strong>Description:</strong> {row[2]}</p>
-            <p><a href="https://support.msistaff.com/admin">Open Admin Panel</a></p>
-            """
+             # 2️⃣ render the fancy HTML template
+            html = jinja_env.get_template("high_priority_alert.html").render(
+            ticket_id  = ticket_id,
+            title      = result["title"],
+            description= result["description"],
+            location   = result.get("location"),
+        )
 
             # 3️⃣ queue one e‑mail per admin
             for addr in admin_emails:
