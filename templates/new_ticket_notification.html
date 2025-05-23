@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>New Ticket #{{ ticket_id }}</title>
+    <style>
+      /* —— basic reset —— */
+      body, table { margin:0; padding:0; }
+      body        { background:#f4f6f8; font-family:Arial,Helvetica,sans-serif; }
+      a           { color:#0069d9; text-decoration:none; }
+      /* —— card —— */
+      .card       { max-width:600px; margin:30px auto; background:#ffffff;
+                    border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.07); }
+      .header     { background:#0069d9; color:#ffffff; padding:24px 32px;
+                    border-radius:8px 8px 0 0; }
+      .header h1  { margin:0; font-size:24px; }
+      .content    { padding:24px 32px; color:#333333; line-height:1.6; }
+      .label      { font-weight:bold; }
+      .btn        { display:inline-block; margin:24px 0 0; padding:12px 24px;
+                    background:#28a745; color:#ffffff !important;
+                    border-radius:4px; font-weight:bold; }
+      .footer     { font-size:12px; color:#555555; padding:16px 32px 24px; }
+    </style>
+  </head>
+  <body>
+    <table role="presentation" width="100%">
+      <tr>
+        <td>
+          <div class="card">
+            <div class="header">
+              <h1>🆕 New Ticket #{{ ticket_id }}</h1>
+            </div>
+            <div class="content">
+              <p><span class="label">Title:</span> {{ title }}</p>
+              <p><span class="label">Description:</span> {{ description }}</p>
+              <p><span class="label">Priority:</span> {{ priority }}</p>
+              <p><span class="label">Location:</span> {{ location or "—" }}</p>
+              <p><span class="label">Submitted by:</span> {{ submitted_by_name }}</p>
+              {% if cc_email %}
+                <p><span class="label">CC:</span> {{ cc_email }}</p>
+              {% endif %}
+              <a class="btn" href="https://support.msistaff.com/admin">
+                View in Admin Panel
+              </a>
+            </div>
+            <div class="footer">
+              This message was generated automatically •
+              {{ now.strftime("%b %d %Y %I:%M %p") }} UTC
+            </div>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

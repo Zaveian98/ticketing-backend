@@ -371,20 +371,22 @@ async def create_ticket(
     submitted_by_name = (first + " " + last).strip()
 
     # ── 4️⃣ Notify support ──
-    support_html = f"""\
-<!DOCTYPE html>
-<html><body>
-  <h1>New Ticket #{ticket_id}</h1>
-  <p><strong>Title:</strong> {title}</p>
-  <p><strong>Description:</strong> {description}</p>
-  <p><strong>Submitted by:</strong> {submitted_by_name}</p>
-  <p><a href="https://support.msistaff.com/admin">View in Admin Panel</a></p>
-</body></html>"""
+    template = jinja_env.get_template("new_ticket_notification.html")
+    support_html = template.render(
+        ticket_id         = ticket_id,
+        title             = title,
+        description       = description,
+        priority          = priority,
+        location          = location,
+        submitted_by_name = submitted_by_name,
+        cc_email          = cc_email,
+        now               = now,            # for the footer timestamp
+    )
     background_tasks.add_task(
         send_email,
         "support@msistaff.com",
         f"[MSI] New Ticket #{ticket_id} Submitted",
-        support_html
+        support_html,
     )
 
     # ── 5️⃣ Confirm to user ──
@@ -445,7 +447,7 @@ async def create_ticket(
         send_email,
         submitted_by,
         f"Your Ticket #{ticket_id} Received",
-        user_html
+        user_html,
     )
 
     # ── 6️⃣ CC notification (if provided) ──
@@ -463,7 +465,7 @@ async def create_ticket(
             send_email,
             cc_email,
             f"You were CC’d on Ticket #{ticket_id}",
-            cc_html
+            cc_html,
         )
 
     # ── 7️⃣ Return the ticket, including screenshot URLs ──
@@ -483,6 +485,7 @@ async def create_ticket(
         assigned_to       = None,
         screenshots       = uploaded_urls,
     )
+
 
 
 
