@@ -442,10 +442,6 @@ async def create_ticket(
         screenshots       = uploaded_urls,
     )
 
-
-
-
-
 @app.post("/tasks", response_model=TaskOut)
 async def create_task(
     text: str                   = Form(...),
@@ -549,6 +545,31 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
         )
         conn.commit()
 
+        # ── NEW: notify all admins if priority is now High ──
+        if "priority" in update_data and update_data["priority"] == "High":
+            # 1️⃣ pull every admin email
+            cur2 = conn.cursor()
+            cur2.execute("SELECT email FROM users WHERE role = 'Admin'")
+            admin_emails = [row[0] for row in cur2.fetchall()]
+            cur2.close()
+
+            # 2️⃣ simple HTML alert
+            html = f"""
+            <h2>🚨 High‑Priority Ticket #{ticket_id}</h2>
+            <p><strong>Title:</strong> {row[1]}</p>
+            <p><strong>Description:</strong> {row[2]}</p>
+            <p><a href="https://support.msistaff.com/admin">Open Admin Panel</a></p>
+            """
+
+            # 3️⃣ queue one e‑mail per admin
+            for addr in admin_emails:
+                background_tasks.add_task(
+                    send_email,
+                    addr,
+                    f"[MSI] Ticket #{ticket_id} marked HIGH priority",
+                    html,
+                )
+
     # ── Re-fetch the updated row ──
     cur.execute("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
     updated_row = cur.fetchone()
@@ -567,10 +588,8 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
     raw = result.pop("screenshot", None) or "[]"
     try:
         parsed = json.loads(raw)
-        # if it's already a list, use it; otherwise wrap single URL in a list
         result["screenshots"] = parsed if isinstance(parsed, list) else [parsed]
     except (ValueError, TypeError):
-        # if JSON is invalid for some reason, just give an empty list
         result["screenshots"] = []
 
     # ── Send notification if status changed to Resolved or Closed ──
@@ -596,6 +615,7 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
 
     # ── Finally, return the updated ticket ──
     return TicketOut(**result)
+
 
 
 @app.get("/users", response_model=List[UserOut])
