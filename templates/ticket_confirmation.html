@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Your Ticket #{{ ticket_id }} Received</title>
+    <style>
+  body, table { margin:0; padding:0; }
+  body        { background:#f4f6f8; font-family:Arial,Helvetica,sans-serif; }
+  a           { color:#0069d9; text-decoration:none; }
+  .card       { max-width:600px; margin:30px auto; background:#ffffff;
+                border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.07); }
+  .header     { background:#0069d9; color:#ffffff; text-align:center;
+                padding:28px 24px 16px; border-radius:8px 8px 0 0; }
+  .header h2  { margin:0; font-size:24px; }
+  .content    { padding:0 32px 32px; color:#333; line-height:1.6; }
+  .btn        { display:block; width:100%; max-width:240px; margin:24px auto 0;
+                padding:14px 0; background:#0069d9; color:#fff !important;
+                border-radius:6px; font-weight:bold; text-align:center; }
+  .footer     { font-size:12px; color:#777; text-align:center; padding:0 0 24px; }
+</style>
+
+  </head>
+  <body>
+    <table role="presentation" width="100%">
+      <tr>
+        <td>
+          <div class="card">
+            <div class="header">
+              <h2>🎉 Your Ticket #{{ ticket_id }} Is In!</h2>
+            </div>
+            <div class="content">
+              <p>Hi {{ first_name }},</p>
+              <p>Thanks for reaching out—here’s what we’ve got on file:</p>
+              <ul>
+                <li><strong>Ticket #:</strong> {{ ticket_id }}</li>
+                <li><strong>Title:</strong> {{ title }}</li>
+              </ul>
+              <a class="btn"
+                 href="https://support.msistaff.com/ticketboard?user_email={{ submitted_by }}">
+                 View Your Ticket
+              </a>
+              <p style="margin-top:32px;">Cheers,<br/>The MSI Support Team</p>
+            </div>
+            <div class="footer">
+              If you didn't submit this, just ignore this email.
+            </div>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
