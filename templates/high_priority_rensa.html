@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: system-ui, sans-serif">
+    <h1 style="margin:0;color:#b30000">
+      🚨 HIGH‑PRIORITY Rensa Start‑Date Ticket
+    </h1>
+
+    <p><strong>#{{ ticket_id }}</strong> – {{ title }}</p>
+
+    <table style="border-collapse:collapse;margin:1em 0">
+      <tr><td><strong>Description:</strong></td><td>{{ description }}</td></tr>
+      <tr><td><strong>Location:</strong></td><td>{{ location or "n/a" }}</td></tr>
+      <tr><td><strong>Submitted By:</strong></td><td>{{ submitted_by_name }}</td></tr>
+      {% if cc_email %}
+      <tr><td><strong>CC:</strong></td><td>{{ cc_email }}</td></tr>
+      {% endif %}
+    </table>
+
+    <p style="font-size:0.9em;color:#666">
+      Sent {{ now.strftime("%Y‑%m‑%d %I:%M %p %Z") }}
+    </p>
+  </body>
+</html>

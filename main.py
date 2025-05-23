@@ -312,10 +312,16 @@ async def create_ticket(
     location:     Optional[str]     = Form(None),
     status:       str               = Form(...),
     priority:     str               = Form(...),
+    category:     Optional[str]     = Form(None), 
     cc_email:     Optional[str]     = Form(None),
     screenshots:  List[UploadFile]  = File([]),
 ):
     now = datetime.now(timezone.utc)
+    
+    # 🚨 Make every “Start Date (Rensa)” ticket High priority
+    if category == "Start Date (Rensa)":
+        priority = "High"
+
 
     # ── 1️⃣ Save each screenshot and collect URLs ──
     uploaded_urls: List[str] = []
@@ -370,31 +376,40 @@ async def create_ticket(
     conn2.close()
     submitted_by_name = (first + " " + last).strip()
 
-    # ── 4️⃣ Notify support ──
-    template = jinja_env.get_template("new_ticket_notification.html")
-    support_html = template.render(
-        ticket_id         = ticket_id,
-        title             = title,
-        description       = description,
-        priority          = priority,
-        location          = location,
-        submitted_by_name = submitted_by_name,
-        cc_email          = cc_email,
-        now               = now,            # for the footer timestamp
-    )
-    background_tasks.add_task(
-        send_email,
-        "support@msistaff.com",
-        f"[MSI] New Ticket #{ticket_id} Submitted",
-        support_html,
-    )
+    
+     # ── 4️⃣  Notify the Support team ───────────────────────────────
+    if priority == "High":
+      template      = jinja_env.get_template("high_priority_rensa.html")
+      email_subject = f"[MSI] 🚨 HIGH Ticket #{ticket_id} Submitted"
+    else:
+      template      = jinja_env.get_template("new_ticket_notification.html")
+      email_subject = f"[MSI] New Ticket #{ticket_id} Submitted"
 
-       # ── 5️⃣ Confirm to user ──
-    tmpl       = jinja_env.get_template("ticket_confirmation.html")
-    user_html  = tmpl.render(
+    support_html = template.render(
+    ticket_id         = ticket_id,
+    title             = title,
+    description       = description,
+    priority          = priority,
+    location          = location,
+    submitted_by_name = submitted_by_name,
+    cc_email          = cc_email,
+    now               = now,
+)
+
+    background_tasks.add_task(
+    send_email,
+    "support@msistaff.com",
+    email_subject,
+    support_html,
+)
+
+
+    # ── 5️⃣ Confirm to user ──
+    tmpl = jinja_env.get_template("ticket_confirmation.html")
+    user_html = tmpl.render(
         ticket_id    = ticket_id,
         title        = title,
-        first_name   = first,        # comes from the lookup earlier
+        first_name   = first,
         submitted_by = submitted_by,
     )
     background_tasks.add_task(
@@ -404,7 +419,12 @@ async def create_ticket(
         user_html,
     )
 
-    
+    # … step 6 CC email … (keep indented)
+
+    return TicketOut(
+        # … fields …
+    )
+
 
     # ── 6️⃣ CC notification (if provided) ──
     if cc_email:
