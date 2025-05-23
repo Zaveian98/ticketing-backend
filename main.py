@@ -312,30 +312,27 @@ async def create_ticket(
     location:     Optional[str]     = Form(None),
     status:       str               = Form(...),
     priority:     str               = Form(...),
-    category:     Optional[str]     = Form(None), 
+    category:     Optional[str]     = Form(None),
     cc_email:     Optional[str]     = Form(None),
     screenshots:  List[UploadFile]  = File([]),
 ):
     now = datetime.now(timezone.utc)
-    
-    # 🚨 Make every “Start Date (Rensa)” ticket High priority
+
+    # 🚨 auto‑upgrade Rensa tickets
     if category == "Start Date (Rensa)":
         priority = "High"
 
-
-    # ── 1️⃣ Save each screenshot and collect URLs ──
-    uploaded_urls: List[str] = []
+    # 1️⃣  save screenshots
+    uploaded_urls: list[str] = []
     upload_dir = "./static/uploads"
     os.makedirs(upload_dir, exist_ok=True)
-
     for file in screenshots:
         dest = os.path.join(upload_dir, file.filename)
-        print("💾 Writing screenshot to:", dest)
         with open(dest, "wb") as out:
             out.write(await file.read())
         uploaded_urls.append(f"/static/uploads/{file.filename}")
 
-    # ── 2️⃣ Insert into DB (store JSON list in screenshot column) ──
+    # 2️⃣  DB insert
     conn = get_db_connection()
     cur  = conn.cursor()
     cur.execute(
@@ -343,108 +340,79 @@ async def create_ticket(
         INSERT INTO tickets
           (title, description, submitted_by, location, status, priority,
            created_at, updated_at, screenshot, cc_email)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id
         """,
         (
-            title,
-            description,
-            submitted_by,
-            location,
-            status,
-            priority,
-            now,
-            now,
-            json.dumps(uploaded_urls),
-            cc_email,
+            title, description, submitted_by, location, status, priority,
+            now, now, json.dumps(uploaded_urls), cc_email
         ),
     )
     ticket_id = cur.fetchone()[0]
     conn.commit()
-    cur.close()
-    conn.close()
+    cur.close(); conn.close()
 
-    # ── 3️⃣ Lookup submitter’s name ──
-    conn2 = get_db_connection()
-    cur2  = conn2.cursor()
-    cur2.execute(
+    # 3️⃣  lookup submitter’s name
+    conn = get_db_connection()
+    cur  = conn.cursor()
+    cur.execute(
         "SELECT first_name, last_name FROM users WHERE email = %s",
-        (submitted_by,),
+        (submitted_by,)
     )
-    first, last = cur2.fetchone() or ("", "")
-    cur2.close()
-    conn2.close()
-    submitted_by_name = (first + " " + last).strip()
+    first, last = cur.fetchone() or ("", "")
+    cur.close(); conn.close()
+    submitted_by_name = f"{first} {last}".strip()
 
-    
-     # ── 4️⃣  Notify the Support team ───────────────────────────────
+    # 4️⃣  notify Support
     if priority == "High":
-      template      = jinja_env.get_template("high_priority_rensa.html")
-      email_subject = f"[MSI] 🚨 HIGH Ticket #{ticket_id} Submitted"
+        tpl  = jinja_env.get_template("high_priority_rensa.html")
+        subj = f"[MSI] 🚨 HIGH Ticket #{ticket_id} Submitted"
     else:
-      template      = jinja_env.get_template("new_ticket_notification.html")
-      email_subject = f"[MSI] New Ticket #{ticket_id} Submitted"
+        tpl  = jinja_env.get_template("new_ticket_notification.html")
+        subj = f"[MSI] New Ticket #{ticket_id} Submitted"
 
-    support_html = template.render(
-    ticket_id         = ticket_id,
-    title             = title,
-    description       = description,
-    priority          = priority,
-    location          = location,
-    submitted_by_name = submitted_by_name,
-    cc_email          = cc_email,
-    now               = now,
-)
-
-    background_tasks.add_task(
-    send_email,
-    "support@msistaff.com",
-    email_subject,
-    support_html,
-)
-
-
-    # ── 5️⃣ Confirm to user ──
-    tmpl = jinja_env.get_template("ticket_confirmation.html")
-    user_html = tmpl.render(
-        ticket_id    = ticket_id,
-        title        = title,
-        first_name   = first,
-        submitted_by = submitted_by,
+    support_html = tpl.render(
+        ticket_id         = ticket_id,
+        title             = title,
+        description       = description,
+        priority          = priority,
+        location          = location,
+        submitted_by_name = submitted_by_name,
+        cc_email          = cc_email,
+        now               = now,
     )
     background_tasks.add_task(
-        send_email,
-        submitted_by,
-        f"Your Ticket #{ticket_id} Received",
-        user_html,
+        send_email, "support@msistaff.com", subj, support_html
     )
 
-    # … step 6 CC email … (keep indented)
-
-    return TicketOut(
-        # … fields …
+    # 5️⃣  confirmation to user
+    user_html = jinja_env.get_template("ticket_confirmation.html").render(
+        ticket_id = ticket_id,
+        title     = title,
+        first_name= first,
+    )
+    background_tasks.add_task(
+        send_email, submitted_by,
+        f"Your Ticket #{ticket_id} Received", user_html
     )
 
-
-    # ── 6️⃣ CC notification (if provided) ──
+    # 6️⃣  CC notification
     if cc_email:
-        cc_html = f"""\
-<!DOCTYPE html>
-<html><body>
-  <h1>You Were CC’d on Ticket #{ticket_id}</h1>
-  <p><strong>Title:</strong> {title}</p>
-  <p><strong>Description:</strong> {description}</p>
-  <p><strong>Submitted by:</strong> {submitted_by_name}</p>
-  <p><a href="https://support.msistaff.com/ticketboard?user_email={submitted_by}">View the Ticket</a></p>
-</body></html>"""
+        cc_html = f"""
+        <html><body>
+          <h1>You Were CC’d on Ticket #{ticket_id}</h1>
+          <p><strong>Title:</strong> {title}</p>
+          <p><strong>Description:</strong> {description}</p>
+          <p><strong>Submitted by:</strong> {submitted_by_name}</p>
+          <p><a href="https://support.msistaff.com/ticketboard?user_email={submitted_by}">
+               View the Ticket</a></p>
+        </body></html>"""
         background_tasks.add_task(
-            send_email,
-            cc_email,
-            f"You were CC’d on Ticket #{ticket_id}",
-            cc_html,
+            send_email, cc_email,
+            f"You were CC’d on Ticket #{ticket_id}", cc_html
         )
 
-    # ── 7️⃣ Return the ticket, including screenshot URLs ──
+    # 7️⃣  return payload FastAPI will validate
     return TicketOut(
         id                = ticket_id,
         title             = title,
@@ -461,6 +429,7 @@ async def create_ticket(
         assigned_to       = None,
         screenshots       = uploaded_urls,
     )
+
 
 @app.post("/tasks", response_model=TaskOut)
 async def create_task(
