@@ -545,31 +545,6 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
         )
         conn.commit()
 
-        # ── NEW: notify all admins if priority is now High ──
-        if "priority" in update_data and update_data["priority"] == "High":
-            # 1️⃣ pull every admin email
-            cur2 = conn.cursor()
-            cur2.execute("SELECT email FROM users WHERE role = 'Admin'")
-            admin_emails = [row[0] for row in cur2.fetchall()]
-            cur2.close()
-
-             # 2️⃣ render the fancy HTML template
-            html = jinja_env.get_template("high_priority_alert.html").render(
-            ticket_id  = ticket_id,
-            title      = result["title"],
-            description= result["description"],
-            location   = result.get("location"),
-        )
-
-            # 3️⃣ queue one e‑mail per admin
-            for addr in admin_emails:
-                background_tasks.add_task(
-                    send_email,
-                    addr,
-                    f"[MSI] Ticket #{ticket_id} marked HIGH priority",
-                    html,
-                )
-
     # ── Re-fetch the updated row ──
     cur.execute("SELECT * FROM tickets WHERE id = %s", (ticket_id,))
     updated_row = cur.fetchone()
@@ -584,13 +559,37 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
     # ── Build the `submitted_by_name` field ──
     result["submitted_by_name"] = result["submitted_by"]
 
-    # ── **NEW**: parse the raw JSON screenshot column into your screenshots list ──
+    # ── Parse screenshot JSON ──
     raw = result.pop("screenshot", None) or "[]"
     try:
         parsed = json.loads(raw)
         result["screenshots"] = parsed if isinstance(parsed, list) else [parsed]
     except (ValueError, TypeError):
         result["screenshots"] = []
+
+    # ── NEW: notify admins if priority just became High ──
+    if "priority" in update_data and update_data["priority"] == "High":
+        conn2 = get_db_connection()
+        cur2  = conn2.cursor()
+        cur2.execute("SELECT email FROM users WHERE role = 'Admin'")
+        admin_emails = [r[0] for r in cur2.fetchall()]
+        cur2.close()
+        conn2.close()
+
+        html = jinja_env.get_template("high_priority_alert.html").render(
+            ticket_id   = ticket_id,
+            title       = result["title"],
+            description = result["description"],
+            location    = result.get("location"),
+        )
+
+        for addr in admin_emails:
+            background_tasks.add_task(
+                send_email,
+                addr,
+                f"[MSI] Ticket #{ticket_id} marked HIGH priority",
+                html,
+            )
 
     # ── Send notification if status changed to Resolved or Closed ──
     new_status = result.get("status")
@@ -603,18 +602,16 @@ def patch_ticket(ticket_id: int, changes: TicketUpdate, background_tasks: Backgr
             submitted_by = result["submitted_by"],
             year         = datetime.now(timezone.utc).year,
         )
-        subject = f"Your Ticket #{ticket_id} {new_status}"
         background_tasks.add_task(
             send_email,
             result["submitted_by"],
-            subject,
-            html
+            f"Your Ticket #{ticket_id} {new_status}",
+            html,
         )
 
     print("Updated ticket:", result)
-
-    # ── Finally, return the updated ticket ──
     return TicketOut(**result)
+
 
 
 
